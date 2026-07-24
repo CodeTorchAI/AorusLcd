@@ -133,6 +133,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>The GIF's first frame, kept for the preview.</summary>
     private Bitmap? _gifFirstFrame;
 
+    /// <summary>Align the content selector to the panel's live mode only on the first successful connect, so a later manual refresh never clobbers an in-progress selection.</summary>
+    private bool _hasSyncedContentToPanel;
+
     [ObservableProperty]
     public partial bool ClearSensorsOnSend { get; set; } = true;
 
@@ -243,26 +246,32 @@ public partial class MainViewModel : ViewModelBase
         {
             case ContentImage:
                 preview = _imageSource is not null ? PanelImage.Render320(_imageSource) : null;
-                caption = preview is null ? "Choose an image to preview it here." : "Exactly how the image will appear on the 320×170 panel.";
+                caption = preview is null
+                    ? "The panel's current image can't be read back - choose an image to preview what you'll send."
+                    : "Preview of the image you'll send - exactly as it appears on the 320×170 panel.";
                 break;
             case ContentText:
                 preview = string.IsNullOrEmpty(TextInput)
                     ? null
                     : PanelText.Render(TextInput, TextSize, SafeColor(TextColorHex, Colors.White), SafeColor(TextBgHex, Colors.Black));
-                caption = preview is null ? "Enter a message to preview it here." : "Live preview of the rendered text.";
+                caption = preview is null
+                    ? "Enter a message to preview what you'll send."
+                    : "Preview of the text you'll send.";
                 break;
             case ContentGif:
                 preview = _gifFirstFrame is not null ? PanelImage.Render320(_gifFirstFrame) : null;
-                caption = preview is null ? "Choose a GIF to preview its first frame." : "First frame shown; the panel plays the full animation.";
+                caption = preview is null
+                    ? "The panel's current GIF can't be read back - choose a GIF to preview what you'll send."
+                    : "First frame of the GIF you'll send; the panel plays the full animation.";
                 break;
             case ContentBuiltIn:
-                caption = "Built-in animation - drawn by the panel firmware, so it can't be previewed here.";
+                caption = "Built-in animation drawn by the panel firmware - it can't be mirrored in this preview.";
                 break;
             case ContentCarousel:
-                caption = "Carousel rotates through the selected screens on the panel.";
+                caption = "Carousel rotates through the selected screens on the panel - it can't be mirrored in this preview.";
                 break;
             case ContentSensors:
-                caption = "Live GPU dashboard - drawn by the panel from the sensor feed.";
+                caption = "Live GPU dashboard drawn by the panel from the sensor feed - it can't be mirrored in this preview.";
                 break;
         }
         SetPreview(preview);
@@ -565,9 +574,32 @@ public partial class MainViewModel : ViewModelBase
             CurrentMode = $"{(int)status.Mode} ({status.Mode})";
             SetSensorToggles(status.DisplayElements);
             SensorInterval = status.DisplayInterval == 0 ? SensorInterval : status.DisplayInterval;
+            if (!_hasSyncedContentToPanel)
+            {
+                // Start the preview on whatever the panel is actually showing instead of the Image default.
+                SelectedLcdContent = MapPanelStateToContent(status.Mode, status.DisplayElements);
+                _hasSyncedContentToPanel = true;
+            }
         });
         return $"Connected: {gpuName} - firmware {status.FirmwareVersion}, mode {status.Mode}.";
     });
+
+    /// <summary>Map the panel's live mode/overlay to a content selector value; an active sensor overlay wins since it's the panel's visible content.</summary>
+    private static string MapPanelStateToContent(LcdMode mode, LcdDisplayElements elements)
+    {
+        if (elements != LcdDisplayElements.None)
+        {
+            return ContentSensors;
+        }
+        return mode switch
+        {
+            LcdMode.Image => ContentImage,
+            LcdMode.Text => ContentText,
+            LcdMode.Gif => ContentGif,
+            LcdMode.Carousel => ContentCarousel,
+            _ => ContentBuiltIn, // Faith1/2/3 + ChibTime are firmware screens
+        };
+    }
 
     /// <summary>Prefer the hardware-detected RGB generation; fall back to the GPU name when RGB can't be located.</summary>
     private async Task<RgbControllerKind> DetectRgbKindAsync(string gpuName)
