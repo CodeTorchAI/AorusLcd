@@ -1058,7 +1058,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private async Task DownloadAndInstallUpdateAsync()
     {
-        if (_pendingUpdate is not { } update || UpdateInProgress)
+        if (_pendingUpdate is not { } update || UpdateInProgress || !OperatingSystem.IsWindows())
         {
             return;
         }
