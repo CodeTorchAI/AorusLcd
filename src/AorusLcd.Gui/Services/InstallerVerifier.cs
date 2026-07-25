@@ -22,12 +22,13 @@ public enum InstallerSignature
 public static class InstallerVerifier
 {
     private const uint WtdUiNone = 2;
-    private const uint WtdRevokeNone = 0;
+    private const uint WtdRevokeWholeChain = 1;
     private const uint WtdChoiceFile = 1;
     private const uint WtdStateActionVerify = 1;
     private const uint WtdStateActionClose = 2;
     private const uint WtdSaferFlag = 0x100;
     private const uint TrustNoSignature = 0x800B0100; // TRUST_E_NOSIGNATURE
+    private const uint CertERevocationFailure = 0x800B010E; // revocation server offline/unreachable
 
     // WINTRUST_ACTION_GENERIC_VERIFY_V2
     private static Guid _genericVerify = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
@@ -49,7 +50,7 @@ public static class InstallerVerifier
             {
                 CbStruct = (uint)Marshal.SizeOf<WintrustData>(),
                 UiChoice = WtdUiNone,
-                RevocationChecks = WtdRevokeNone,
+                RevocationChecks = WtdRevokeWholeChain,
                 UnionChoice = WtdChoiceFile,
                 FileInfoPtr = pFile,
                 StateAction = WtdStateActionVerify,
@@ -69,6 +70,9 @@ public static class InstallerVerifier
             {
                 0 => InstallerSignature.Trusted,
                 TrustNoSignature => InstallerSignature.NotSigned,
+                // Soft-fail when the revocation server is unreachable so offline updates still work;
+                // an actually revoked cert returns CRYPT_E_REVOKED and falls through to Invalid.
+                CertERevocationFailure => InstallerSignature.Trusted,
                 _ => InstallerSignature.Invalid,
             };
         }

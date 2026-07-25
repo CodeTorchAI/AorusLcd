@@ -1069,11 +1069,13 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
         UpdateInProgress = true;
+        string? setupPath = null;
+        var launched = false;
         try
         {
             var progress = new Progress<double>(p => UpdateStatus = $"Downloading {update.TagName}… {p * 100:0}%");
             UpdateStatus = $"Downloading {update.TagName}…";
-            var setupPath = await _update.DownloadSetupAsync(update, progress).ConfigureAwait(true);
+            setupPath = await _update.DownloadSetupAsync(update, progress).ConfigureAwait(true);
 
             UpdateStatus = "Verifying installer…";
             var signature = await Task.Run(() => InstallerVerifier.Verify(setupPath)).ConfigureAwait(true);
@@ -1089,6 +1091,7 @@ public partial class MainViewModel : ViewModelBase
                 ? "Signature verified. Launching installer…"
                 : "Launching installer (note: this download isn't code-signed)…";
             UpdateService.LaunchInstaller(setupPath);
+            launched = true;
             // The installer needs to replace this exe, so exit once it has launched.
             ExitRequested?.Invoke(this, EventArgs.Empty);
             // If nothing handled the exit (design host / tests), don't leave the UI stuck disabled.
@@ -1096,6 +1099,11 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception e)
         {
+            // Until launch succeeds the download is untrusted; don't leave it in the temp folder.
+            if (!launched && setupPath is not null)
+            {
+                TryDelete(setupPath);
+            }
             UpdateStatus = $"Update failed: {e.Message}";
             UpdateInProgress = false;
         }
