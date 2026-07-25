@@ -68,9 +68,11 @@ public sealed class UpdateService
     public async Task<string> DownloadSetupAsync(UpdateInfo update, IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "AorusLcdUpdate");
+        // Fresh per-download directory so the path isn't predictable and CreateNew can never
+        // collide with (or clobber) a leftover file from an earlier run.
+        var dir = Path.Combine(Path.GetTempPath(), "AorusLcdUpdate", Path.GetRandomFileName());
         Directory.CreateDirectory(dir);
-        // The asset name is remote input; reduce it to a bare filename so it can't escape the temp folder.
+        // The asset name is remote input; reduce it to a bare filename so it can't escape the folder.
         var fileName = Path.GetFileName(update.SetupName);
         if (string.IsNullOrWhiteSpace(fileName))
         {
@@ -86,17 +88,19 @@ public sealed class UpdateService
             long? total = response.Content.Headers.ContentLength;
 
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            await using var destination = File.Create(path);
-            var buffer = new byte[81920];
-            long readTotal = 0;
-            int read;
-            while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            await using (var destination = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                readTotal += read;
-                if (total is > 0)
+                var buffer = new byte[81920];
+                long readTotal = 0;
+                int read;
+                while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
                 {
-                    progress?.Report((double)readTotal / total.Value);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    readTotal += read;
+                    if (total is > 0)
+                    {
+                        progress?.Report((double)readTotal / total.Value);
+                    }
                 }
             }
             return path;
@@ -104,16 +108,16 @@ public sealed class UpdateService
         catch
         {
             // Don't leave a half-written installer behind for the next run to trip over.
-            TryDelete(path);
+            TryDeleteDirectory(dir);
             throw;
         }
     }
 
-    private static void TryDelete(string path)
+    private static void TryDeleteDirectory(string dir)
     {
         try
         {
-            File.Delete(path);
+            Directory.Delete(dir, recursive: true);
         }
         catch (Exception)
         {

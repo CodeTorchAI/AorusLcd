@@ -1062,6 +1062,12 @@ public partial class MainViewModel : ViewModelBase
         {
             return;
         }
+        if (IsBusy)
+        {
+            // A hardware transfer is in flight; shutdown waits for it, which would stall the installer.
+            UpdateStatus = "Finish the current panel operation before installing the update.";
+            return;
+        }
         UpdateInProgress = true;
         try
         {
@@ -1081,7 +1087,7 @@ public partial class MainViewModel : ViewModelBase
 
             UpdateStatus = signature == InstallerSignature.Trusted
                 ? "Signature verified. Launching installer…"
-                : "Launching installer (note: this build is not code-signed)…";
+                : "Launching installer (note: this download isn't code-signed)…";
             UpdateService.LaunchInstaller(setupPath);
             // The installer needs to replace this exe, so exit once it has launched.
             ExitRequested?.Invoke(this, EventArgs.Empty);
