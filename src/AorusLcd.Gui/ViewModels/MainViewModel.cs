@@ -1059,7 +1059,19 @@ public partial class MainViewModel : ViewModelBase
             UpdateStatus = $"Downloading {update.TagName}…";
             var setupPath = await _update.DownloadSetupAsync(update, progress).ConfigureAwait(true);
 
-            UpdateStatus = "Launching installer…";
+            UpdateStatus = "Verifying installer…";
+            var signature = await Task.Run(() => InstallerVerifier.Verify(setupPath)).ConfigureAwait(true);
+            if (signature == InstallerSignature.Invalid)
+            {
+                TryDelete(setupPath);
+                UpdateStatus = "Update blocked: the installer failed signature verification (it may be tampered or untrusted). Download it manually from the releases page.";
+                UpdateInProgress = false;
+                return;
+            }
+
+            UpdateStatus = signature == InstallerSignature.Trusted
+                ? "Signature verified. Launching installer…"
+                : "Launching installer (note: this build is not code-signed)…";
             UpdateService.LaunchInstaller(setupPath);
             // The installer needs to replace this exe, so exit once it has launched.
             ExitRequested?.Invoke(this, EventArgs.Empty);
@@ -1068,6 +1080,18 @@ public partial class MainViewModel : ViewModelBase
         {
             UpdateStatus = $"Update failed: {e.Message}";
             UpdateInProgress = false;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            System.IO.File.Delete(path);
+        }
+        catch (Exception)
+        {
+            // best-effort cleanup of a rejected download
         }
     }
 
