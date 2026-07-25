@@ -102,7 +102,7 @@ jobs:
             "publish/framework-dependent/AorusLcd.Service.exe"
           )
           & "$env:SIGNTOOL" sign /f "$env:CODESIGN_PFX" /p "$env:SIGN_CERT_PASSWORD" `
-            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 @targets
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $targets
           if ($LASTEXITCODE -ne 0) { throw "signtool failed on application binaries." }
 
       - name: Build installer (Inno Setup)
