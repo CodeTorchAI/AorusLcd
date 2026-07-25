@@ -36,6 +36,7 @@ public sealed class UpdateService
         }
 
         UpdateInfo? newest = null;
+        bool newestIsPrerelease = false;
         foreach (var release in releases)
         {
             if (release.Draft || TryParseTag(release.TagName) is not Version version)
@@ -48,10 +49,15 @@ public sealed class UpdateService
             {
                 continue;
             }
-            if (newest is null || version > newest.Version)
+            // Higher numeric version wins; for the same version, a stable release beats a prerelease.
+            bool better = newest is null
+                || version > newest.Version
+                || (version == newest.Version && newestIsPrerelease && !release.Prerelease);
+            if (better)
             {
                 newest = new UpdateInfo(version, release.TagName ?? version.ToString(),
                     release.HtmlUrl ?? "", asset.BrowserDownloadUrl, asset.Name);
+                newestIsPrerelease = release.Prerelease;
             }
         }
 
@@ -64,28 +70,55 @@ public sealed class UpdateService
     {
         var dir = Path.Combine(Path.GetTempPath(), "AorusLcdUpdate");
         Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, update.SetupName);
-
-        using var response = await Http.GetAsync(update.SetupUrl,
-            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        long? total = response.Content.Headers.ContentLength;
-
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = File.Create(path);
-        var buffer = new byte[81920];
-        long readTotal = 0;
-        int read;
-        while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        // The asset name is remote input; reduce it to a bare filename so it can't escape the temp folder.
+        var fileName = Path.GetFileName(update.SetupName);
+        if (string.IsNullOrWhiteSpace(fileName))
         {
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            readTotal += read;
-            if (total is > 0)
-            {
-                progress?.Report((double)readTotal / total.Value);
-            }
+            fileName = "AorusLcd-setup.exe";
         }
-        return path;
+        var path = Path.Combine(dir, fileName);
+
+        try
+        {
+            using var response = await Http.GetAsync(update.SetupUrl,
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            long? total = response.Content.Headers.ContentLength;
+
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using var destination = File.Create(path);
+            var buffer = new byte[81920];
+            long readTotal = 0;
+            int read;
+            while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                readTotal += read;
+                if (total is > 0)
+                {
+                    progress?.Report((double)readTotal / total.Value);
+                }
+            }
+            return path;
+        }
+        catch
+        {
+            // Don't leave a half-written installer behind for the next run to trip over.
+            TryDelete(path);
+            throw;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception)
+        {
+            // best-effort cleanup
+        }
     }
 
     /// <summary>Launch the installer via ShellExecute so its admin manifest triggers the UAC prompt; the app then exits to let it replace files.</summary>

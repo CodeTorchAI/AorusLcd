@@ -112,7 +112,7 @@
                                             IsVisible="{Binding UpdateAvailable}" IsEnabled="{Binding IsNotUpdating}" />
                                 </StackPanel>
                                 <TextBlock Classes="label" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Text="{Binding UpdateStatus}" />
+                                           Text="{Binding UpdateStatus}" IsVisible="{Binding HasUpdateStatus}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

@@ -85,7 +85,11 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Status/result line for the update check (empty until the user checks or an update is found).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdateStatus))]
     public partial string UpdateStatus { get; set; } = "";
+
+    /// <summary>True when there is an update status line to show, so the About tab stays quiet otherwise.</summary>
+    public bool HasUpdateStatus => !string.IsNullOrEmpty(UpdateStatus);
 
     /// <summary>True when a newer release is available to install.</summary>
     [ObservableProperty]
@@ -1027,9 +1031,15 @@ public partial class MainViewModel : ViewModelBase
                 UpdateAvailable = true;
                 UpdateStatus = $"Update available: {update.TagName} (you have {_update.CurrentVersion.ToString(3)}).";
             }
-            else if (!silent)
+            else
             {
-                UpdateStatus = $"You're up to date ({_update.CurrentVersion.ToString(3)}).";
+                // Clear any stale result from an earlier check so the "Update now" button can't linger.
+                _pendingUpdate = null;
+                UpdateAvailable = false;
+                if (!silent)
+                {
+                    UpdateStatus = $"You're up to date ({_update.CurrentVersion.ToString(3)}).";
+                }
             }
         }
         catch (Exception e)
