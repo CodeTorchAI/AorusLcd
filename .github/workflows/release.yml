@@ -36,6 +36,41 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v', ''
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      # Signing is optional: it runs only when the SIGN_CERT_BASE64 secret is set,
+      # so forks and unconfigured repos still produce a working (unsigned) release.
+      - name: Detect signing secret
+        id: signing
+        shell: pwsh
+        env:
+          SIGN_CERT_BASE64: ${{ secrets.SIGN_CERT_BASE64 }}
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          # Gate on the cert material itself; a PFX may legitimately have a blank
+          # password, so a missing password is a warning (not a hard gate) to keep
+          # passwordless certs working while flagging the likely misconfiguration.
+          $enabled = -not [string]::IsNullOrWhiteSpace($env:SIGN_CERT_BASE64)
+          "enabled=$($enabled.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if (-not $enabled) {
+            Write-Host "::notice::SIGN_CERT_BASE64 not set - release binaries will be unsigned."
+          }
+          elseif ([string]::IsNullOrWhiteSpace($env:SIGN_CERT_PASSWORD)) {
+            Write-Host "::warning::SIGN_CERT_BASE64 is set but SIGN_CERT_PASSWORD is empty. This only works if the PFX has no password; a password-protected cert will fail signing. Set SIGN_CERT_PASSWORD if your cert is protected."
+          }
+
+      - name: Import signing certificate
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SIGN_CERT_BASE64: ${{ secrets.SIGN_CERT_BASE64 }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_CERT_BASE64))
+          "CODESIGN_PFX=$pfx" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $st = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $st) { throw "signtool.exe not found in the Windows 10 SDK." }
+          "SIGNTOOL=$($st.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Publish background service (NativeAOT, win-x64)
         run: dotnet publish src/AorusLcd.Service -c Release -r win-x64 -p:Version=${{ steps.ver.outputs.version }} -o publish/service
 
@@ -61,12 +96,42 @@ jobs:
             Get-ChildItem $dir -Recurse -Filter *.pdb | Remove-Item -Force
           }
 
+      # Sign the app binaries before packaging so both the installer and the zips
+      # ship signed exes. Timestamped so signatures stay valid after the cert expires.
+      - name: Sign application binaries
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          $targets = @(
+            "publish/self-contained/AorusLcd.Gui.exe",
+            "publish/self-contained/AorusLcd.Service.exe",
+            "publish/framework-dependent/AorusLcd.Gui.exe",
+            "publish/framework-dependent/AorusLcd.Service.exe"
+          )
+          & "$env:SIGNTOOL" sign /f "$env:CODESIGN_PFX" /p "$env:SIGN_CERT_PASSWORD" `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $targets
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed on application binaries." }
+
       - name: Build installer (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" installer/AorusLcd.iss
+
+      - name: Sign installer
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        run: |
+          $setup = Get-ChildItem installer/output -Filter *-setup.exe | Select-Object -First 1
+          if (-not $setup) { throw "setup.exe not found in installer/output." }
+          & "$env:SIGNTOOL" sign /f "$env:CODESIGN_PFX" /p "$env:SIGN_CERT_PASSWORD" `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed on the installer." }
 
       - name: Package zip artifacts
         shell: pwsh
@@ -87,3 +152,8 @@ jobs:
           generate_release_notes: true
           # Tags with a pre-release suffix (e.g. v1.0.0-alpha) are marked pre-release.
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+      - name: Clean up signing certificate
+        if: always() && steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:RUNNER_TEMP 'codesign.pfx')

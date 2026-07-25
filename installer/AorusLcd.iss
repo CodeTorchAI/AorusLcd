@@ -10,7 +10,8 @@
 #endif
 
 #define MyAppName "AorusLcd"
-#define MyAppPublisher "JustinMDotNet"
+#define MyAppPublisher "CodeTorch.ai"
+#define MyAppPublisherURL "https://codetorch.ai"
 #define MyAppURL "https://github.com/JustinMDotNet/AorusLcd"
 #define MyAppExeName "AorusLcd.Gui.exe"
 #define MyServiceName "AorusLcdFeed"
@@ -22,7 +23,7 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
+AppPublisherURL={#MyAppPublisherURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
 DefaultDirName={autopf}\{#MyAppName}

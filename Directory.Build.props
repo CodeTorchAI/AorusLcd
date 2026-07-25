@@ -25,9 +25,9 @@
        defaults here and is overridden by CI (-p:Version) from the release tag. -->
   <PropertyGroup>
     <Product>AorusLcd</Product>
-    <Company>AorusLcd</Company>
-    <Authors>JustinMDotNet</Authors>
-    <Copyright>Copyright (c) 2026 JustinMDotNet</Copyright>
+    <Company>CodeTorch.ai</Company>
+    <Authors>CodeTorch.ai</Authors>
+    <Copyright>Copyright (c) 2026 CodeTorch.ai</Copyright>
     <VersionPrefix>0.1.0</VersionPrefix>
   </PropertyGroup>
 
