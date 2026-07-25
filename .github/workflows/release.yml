@@ -43,10 +43,19 @@ jobs:
         shell: pwsh
         env:
           SIGN_CERT_BASE64: ${{ secrets.SIGN_CERT_BASE64 }}
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
         run: |
+          # Gate on the cert material itself; a PFX may legitimately have a blank
+          # password, so a missing password is a warning (not a hard gate) to keep
+          # passwordless certs working while flagging the likely misconfiguration.
           $enabled = -not [string]::IsNullOrWhiteSpace($env:SIGN_CERT_BASE64)
           "enabled=$($enabled.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
-          if (-not $enabled) { Write-Host "::notice::SIGN_CERT_BASE64 not set - release binaries will be unsigned." }
+          if (-not $enabled) {
+            Write-Host "::notice::SIGN_CERT_BASE64 not set - release binaries will be unsigned."
+          }
+          elseif ([string]::IsNullOrWhiteSpace($env:SIGN_CERT_PASSWORD)) {
+            Write-Host "::warning::SIGN_CERT_BASE64 is set but SIGN_CERT_PASSWORD is empty. This only works if the PFX has no password; a password-protected cert will fail signing. Set SIGN_CERT_PASSWORD if your cert is protected."
+          }
 
       - name: Import signing certificate
         if: steps.signing.outputs.enabled == 'true'
