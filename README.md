@@ -58,7 +58,8 @@ quit; only the optional live sensor dashboard needs a tiny background service.
 - Minimizes to the **system tray**; optional **start with Windows** (launches
   straight to the tray).
 - **In-app updates** - the About tab checks GitHub Releases and, when a newer
-  version exists, downloads its installer and launches it in one click (Windows).
+  version exists, downloads its installer, verifies its signature, and launches
+  it in one click (Windows).
 - A lightweight **background service** drives the live sensor feed so the
   dashboard keeps updating with the GUI closed and no user logged in.
 - The GUI and service share the I2C bus through a **cross-process lock**, so an
