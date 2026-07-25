@@ -25,7 +25,13 @@ public partial class MainViewModel : ViewModelBase
 {
     private readonly HardwareService _hw = new();
     private readonly ServiceControl _service = new();
+    private readonly UpdateService _update = new();
     private readonly UiSettings _uiSettings = UiSettings.Load();
+
+    private UpdateInfo? _pendingUpdate;
+
+    /// <summary>Raised when the app should exit (e.g. after launching a downloaded update installer). Wired by <c>App</c>.</summary>
+    public event EventHandler? ExitRequested;
 
     /// <summary>Set by the view to present a file picker (needs a TopLevel).</summary>
     public Func<Task<string?>>? ImagePicker { get; set; }
@@ -54,6 +60,9 @@ public partial class MainViewModel : ViewModelBase
     public Task AutoConnectAsync()
         => _hw.IsSupportedPlatform ? RefreshStatusCommand.ExecuteAsync(null) : Task.CompletedTask;
 
+    /// <summary>Silently check for a newer release on startup; surfaces the banner only when an update is found.</summary>
+    public Task CheckForUpdatesOnStartupAsync() => CheckForUpdatesCoreAsync(silent: true);
+
     // ---- global ------------------------------------------------------------
 
     [ObservableProperty]
@@ -65,6 +74,30 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Inverse of <see cref="IsBusy"/>; action buttons bind their enabled state to this.</summary>
     public bool IsNotBusy => !IsBusy;
+
+    // ---- app version / auto-update -----------------------------------------
+
+    /// <summary>Human-readable running version for the About card.</summary>
+    public string AppVersion => $"Version {_update.CurrentVersion.ToString(3)}";
+
+    /// <summary>Auto-update targets the Windows installer, so the controls only apply on Windows.</summary>
+    public bool UpdatesSupported => OperatingSystem.IsWindows();
+
+    /// <summary>Status/result line for the update check (empty until the user checks or an update is found).</summary>
+    [ObservableProperty]
+    public partial string UpdateStatus { get; set; } = "";
+
+    /// <summary>True when a newer release is available to install.</summary>
+    [ObservableProperty]
+    public partial bool UpdateAvailable { get; set; }
+
+    /// <summary>True while checking or downloading an update, so its buttons disable.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotUpdating))]
+    public partial bool UpdateInProgress { get; set; }
+
+    /// <summary>Inverse of <see cref="UpdateInProgress"/>; the update buttons bind their enabled state to this.</summary>
+    public bool IsNotUpdating => !UpdateInProgress;
 
     [ObservableProperty]
     public partial string GpuName { get; set; } = "-";
@@ -959,6 +992,84 @@ public partial class MainViewModel : ViewModelBase
         await RefreshServiceStateAfterDelayAsync();
         return "Background service stopped.";
     });
+
+    // ---- auto-update commands ----------------------------------------------
+
+    [RelayCommand]
+    private Task CheckForUpdatesAsync() => CheckForUpdatesCoreAsync(silent: false);
+
+    /// <summary>Check GitHub for a newer release; in silent mode stay quiet unless one is found, otherwise always report the outcome.</summary>
+    private async Task CheckForUpdatesCoreAsync(bool silent)
+    {
+        if (UpdateInProgress)
+        {
+            return;
+        }
+        if (!UpdatesSupported)
+        {
+            if (!silent)
+            {
+                UpdateStatus = "Automatic updates are available on the Windows build only.";
+            }
+            return;
+        }
+        UpdateInProgress = true;
+        if (!silent)
+        {
+            UpdateStatus = "Checking for updates…";
+        }
+        try
+        {
+            var update = await _update.CheckForUpdateAsync().ConfigureAwait(true);
+            if (update is not null)
+            {
+                _pendingUpdate = update;
+                UpdateAvailable = true;
+                UpdateStatus = $"Update available: {update.TagName} (you have {_update.CurrentVersion.ToString(3)}).";
+            }
+            else if (!silent)
+            {
+                UpdateStatus = $"You're up to date ({_update.CurrentVersion.ToString(3)}).";
+            }
+        }
+        catch (Exception e)
+        {
+            if (!silent)
+            {
+                UpdateStatus = $"Couldn't check for updates: {e.Message}";
+            }
+        }
+        finally
+        {
+            UpdateInProgress = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadAndInstallUpdateAsync()
+    {
+        if (_pendingUpdate is not { } update || UpdateInProgress)
+        {
+            return;
+        }
+        UpdateInProgress = true;
+        try
+        {
+            var progress = new Progress<double>(p => UpdateStatus = $"Downloading {update.TagName}… {p * 100:0}%");
+            UpdateStatus = $"Downloading {update.TagName}…";
+            var setupPath = await _update.DownloadSetupAsync(update, progress).ConfigureAwait(true);
+
+            UpdateStatus = "Launching installer…";
+            UpdateService.LaunchInstaller(setupPath);
+            // The installer needs to replace this exe, so exit once it has launched.
+            ExitRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception e)
+        {
+            UpdateStatus = $"Update failed: {e.Message}";
+            UpdateInProgress = false;
+        }
+    }
 
     // ---- helpers -----------------------------------------------------------
 

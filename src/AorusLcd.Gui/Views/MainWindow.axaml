@@ -103,6 +103,16 @@
                                 <TextBlock Classes="h2" Text="About" />
                                 <TextBlock Classes="label" TextWrapping="Wrap"
                                            Text="AorusLcd - open-source control for the Aorus Master LCD Edge View and RGB Fusion 2 lighting. It connects automatically on launch (use Refresh, top-right, to reconnect). Closing the window minimizes to the system tray; the sensor feed keeps running in the background." />
+                                <TextBlock Classes="label" Margin="0,8,0,0" Text="{Binding AppVersion}" />
+                                <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0"
+                                            IsVisible="{Binding UpdatesSupported}">
+                                    <Button Content="Check for updates" Command="{Binding CheckForUpdatesCommand}"
+                                            IsEnabled="{Binding IsNotUpdating}" />
+                                    <Button Content="⬇ Update now" Command="{Binding DownloadAndInstallUpdateCommand}"
+                                            IsVisible="{Binding UpdateAvailable}" IsEnabled="{Binding IsNotUpdating}" />
+                                </StackPanel>
+                                <TextBlock Classes="label" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Text="{Binding UpdateStatus}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

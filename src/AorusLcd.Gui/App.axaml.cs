@@ -32,6 +32,7 @@ public partial class App : Application
             _window = new MainWindow { DataContext = _viewModel };
             _window.Closing += OnWindowClosing;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _viewModel.ExitRequested += OnExitRequested;
             ApplyTrayVisibility(_viewModel.ShowTrayIcon);
 
             // For --minimized autostart, initialize MainWindow for tray Show, then hide it immediately to avoid a flash.
@@ -52,6 +53,9 @@ public partial class App : Application
 
             // Auto-connect on launch so the panel status is populated without a manual Refresh.
             _ = _viewModel.AutoConnectAsync();
+
+            // Check GitHub for a newer release in the background; silent unless one is found.
+            _ = _viewModel.CheckForUpdatesOnStartupAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -95,6 +99,8 @@ public partial class App : Application
             ApplyTrayVisibility(_viewModel.ShowTrayIcon);
         }
     }
+
+    private async void OnExitRequested(object? sender, EventArgs e) => await ExitAsync();
 
     private void ApplyTrayVisibility(bool show)
     {
