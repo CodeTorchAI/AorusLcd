@@ -100,7 +100,7 @@ public partial class App : Application
         }
     }
 
-    private async void OnExitRequested(object? sender, EventArgs e) => await ExitAsync();
+    private void OnExitRequested(object? sender, EventArgs e) => _ = ExitAsync();
 
     private void ApplyTrayVisibility(bool show)
     {

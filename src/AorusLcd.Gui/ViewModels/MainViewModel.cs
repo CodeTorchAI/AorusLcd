@@ -1091,6 +1091,8 @@ public partial class MainViewModel : ViewModelBase
             UpdateService.LaunchInstaller(setupPath);
             // The installer needs to replace this exe, so exit once it has launched.
             ExitRequested?.Invoke(this, EventArgs.Empty);
+            // If nothing handled the exit (design host / tests), don't leave the UI stuck disabled.
+            UpdateInProgress = false;
         }
         catch (Exception e)
         {
