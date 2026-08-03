@@ -29,6 +29,17 @@ public class RetryingI2cBusTests
     }
 
     [Fact]
+    public void Write_Does_Not_Retry_NonTransient_Status()
+    {
+        var inner = new FlakyBus(writeFailuresBeforeSuccess: 10, failureStatus: -5);
+        var bus = new RetryingI2cBus(inner, maxAttempts: 5, retryDelayMs: 0);
+
+        var ex = Assert.Throws<NvApiException>(() => bus.Write([7]));
+        Assert.Equal(-5, ex.Status);
+        Assert.Equal(1, inner.WriteAttempts); // non-transient errors surface on the first attempt
+    }
+
+    [Fact]
     public void Read_Passes_Through_Without_Retry()
     {
         var inner = new FlakyBus(writeFailuresBeforeSuccess: 0);
@@ -38,7 +49,7 @@ public class RetryingI2cBusTests
         Assert.Equal(1, inner.ReadAttempts);
     }
 
-    private sealed class FlakyBus(int writeFailuresBeforeSuccess) : II2cBus
+    private sealed class FlakyBus(int writeFailuresBeforeSuccess, int failureStatus = -1) : II2cBus
     {
         public int WriteAttempts { get; private set; }
         public int ReadAttempts { get; private set; }
@@ -49,7 +60,7 @@ public class RetryingI2cBusTests
             WriteAttempts++;
             if (WriteAttempts <= writeFailuresBeforeSuccess)
             {
-                throw new NvApiException("write", -1);
+                throw new NvApiException("write", failureStatus);
             }
             LastWrite = data.ToArray();
         }
@@ -57,7 +68,7 @@ public class RetryingI2cBusTests
         public byte[] Read(int count)
         {
             ReadAttempts++;
-            throw new NvApiException("read", -1);
+            throw new NvApiException("read", failureStatus);
         }
 
         public void Dispose()
