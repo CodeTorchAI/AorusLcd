@@ -125,6 +125,7 @@ begin
 
   { Overwrite the registered binary, retrying briefly if the lock lingers. A persistent
     lock leaves the old exe in place, which is no worse than before this refresh existed. }
+  ForceDirectories(ExtractFileDir(Target));
   for Attempt := 1 to 10 do
   begin
     if CopyFile(Source, Target, False) then
