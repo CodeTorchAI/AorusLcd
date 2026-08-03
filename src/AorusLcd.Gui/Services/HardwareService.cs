@@ -193,7 +193,7 @@ public sealed class HardwareService
                 "No Aorus LCD found (no GPU answered the status query at 0x61 on port 1).");
         }
         _gpuName = located.Value.GpuName;
-        _panel = new PanelController(located.Value.Bus);
+        _panel = new PanelController(new RetryingI2cBus(located.Value.Bus));
         return _panel;
     }
 
