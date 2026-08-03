@@ -71,3 +71,76 @@ Filename: "{cmd}"; Parameters: "/c ""sc delete {#MyServiceName} & exit 0"""; Fla
 ; Remove the machine-wide files the app created outside {app}: the installed
 ; service binary plus its config/log under %ProgramData%\AorusLcd.
 Type: filesandordirs; Name: "{commonappdata}\AorusLcd"
+
+[Code]
+{ The background service runs from a copy under %ProgramData%\AorusLcd\bin (placed
+  there by the app's "Install service" step), which the installer's [Files] section
+  does not touch. On an upgrade, refresh that copy from the freshly installed binary
+  so the running service - and every update path, including the in-app updater that
+  invokes this installer - picks up the new build. Fresh installs skip this: the
+  service is not registered until the user installs it from the Device tab. }
+
+const
+  ServiceName = '{#MyServiceName}';
+
+function ServiceIsInstalled(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  { `sc query` exits 0 when the service exists (in any state), 1060 when it does not. }
+  Result := Exec(ExpandConstant('{cmd}'), '/c sc query ' + ServiceName, '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+function ServiceInState(const State: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  { `find` exits 0 when the state word appears in `sc query` output, 1 otherwise. }
+  Result := Exec(ExpandConstant('{cmd}'),
+    '/c sc query ' + ServiceName + ' | find "' + State + '"', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+procedure RefreshInstalledService();
+var
+  ResultCode, Attempt: Integer;
+  Source, Target: String;
+  WasRunning: Boolean;
+begin
+  Source := ExpandConstant('{app}\AorusLcd.Service.exe');
+  Target := ExpandConstant('{commonappdata}\AorusLcd\bin\AorusLcd.Service.exe');
+  WasRunning := ServiceInState('RUNNING');
+
+  { Stop the service and wait for it to actually reach STOPPED (up to ~15s) so Windows
+    releases the lock on its exe before we overwrite it. }
+  Exec(ExpandConstant('{cmd}'), '/c sc stop ' + ServiceName, '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  for Attempt := 1 to 30 do
+  begin
+    if ServiceInState('STOPPED') then
+      Break;
+    Sleep(500);
+  end;
+
+  { Overwrite the registered binary, retrying briefly if the lock lingers. A persistent
+    lock leaves the old exe in place, which is no worse than before this refresh existed. }
+  for Attempt := 1 to 10 do
+  begin
+    if CopyFile(Source, Target, False) then
+      Break;
+    Sleep(500);
+  end;
+
+  { Only restart if it was running before the upgrade, so a deliberately stopped service
+    stays stopped. }
+  if WasRunning then
+    Exec(ExpandConstant('{cmd}'), '/c sc start ' + ServiceName, '',
+      SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and ServiceIsInstalled() then
+    RefreshInstalledService();
+end;
