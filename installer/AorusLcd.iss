@@ -83,12 +83,19 @@ Type: filesandordirs; Name: "{commonappdata}\AorusLcd"
 const
   ServiceName = '{#MyServiceName}';
 
+{ Fully-qualified System32 path so an elevated install can't be hijacked by a planted
+  sc.exe/find.exe earlier on the executable search path. }
+function SysExe(const Name: String): String;
+begin
+  Result := ExpandConstant('{sys}\') + Name;
+end;
+
 function ServiceIsInstalled(): Boolean;
 var
   ResultCode: Integer;
 begin
   { `sc query` exits 0 when the service exists (in any state), 1060 when it does not. }
-  Result := Exec(ExpandConstant('{cmd}'), '/c sc query ' + ServiceName, '',
+  Result := Exec(SysExe('sc.exe'), 'query ' + ServiceName, '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
@@ -96,9 +103,11 @@ function ServiceInState(const State: String): Boolean;
 var
   ResultCode: Integer;
 begin
-  { `find` exits 0 when the state word appears in `sc query` output, 1 otherwise. }
+  { The pipe needs cmd; both executables are fully qualified. `find` exits 0 when the
+    state word appears in `sc query` output, 1 otherwise. }
   Result := Exec(ExpandConstant('{cmd}'),
-    '/c sc query ' + ServiceName + ' | find "' + State + '"', '',
+    '/c ""' + SysExe('sc.exe') + '" query ' + ServiceName +
+    ' | "' + SysExe('find.exe') + '" "' + State + '""', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
@@ -114,7 +123,7 @@ begin
 
   { Stop the service and wait for it to actually reach STOPPED (up to ~15s) so Windows
     releases the lock on its exe before we overwrite it. }
-  Exec(ExpandConstant('{cmd}'), '/c sc stop ' + ServiceName, '',
+  Exec(SysExe('sc.exe'), 'stop ' + ServiceName, '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   for Attempt := 1 to 30 do
   begin
@@ -134,10 +143,17 @@ begin
   end;
 
   { Only restart if it was running before the upgrade, so a deliberately stopped service
-    stays stopped. }
+    stays stopped. Retry until it reports RUNNING, in case a slow stop was still
+    STOP_PENDING when the first start was issued. }
   if WasRunning then
-    Exec(ExpandConstant('{cmd}'), '/c sc start ' + ServiceName, '',
-      SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    for Attempt := 1 to 10 do
+    begin
+      Exec(SysExe('sc.exe'), 'start ' + ServiceName, '',
+        SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      if ServiceInState('RUNNING') then
+        Break;
+      Sleep(500);
+    end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
