@@ -11,7 +11,7 @@ public static class NvApiPanelLocator
     {
         foreach (var gpu in NvApi.EnumPhysicalGpus())
         {
-            var bus = new NvApiI2cBus(gpu, address: 0x61, port: port);
+            var bus = new NvApiI2cBus(gpu, address: 0x61, port: port, speed: NvApiI2cSpeed.Khz400);
             if (TryProbe(bus))
             {
                 return (bus, NvApi.GetFullName(gpu));
@@ -26,7 +26,7 @@ public static class NvApiPanelLocator
         foreach (var gpu in NvApi.EnumPhysicalGpus())
         {
             string name = NvApi.GetFullName(gpu);
-            var bus = new NvApiI2cBus(gpu, address: 0x61, port: port);
+            var bus = new NvApiI2cBus(gpu, address: 0x61, port: port, speed: NvApiI2cSpeed.Khz400);
             byte[]? status = null;
             string detail;
             try
