@@ -80,7 +80,7 @@ public sealed class FeedWorker : BackgroundService
 
         using var sensors = new NvmlSensorSource(located.Value.Bus.PciBusId);
         var panel = new PanelController(new RetryingI2cBus(located.Value.Bus));
-        int pollMs = SensorFeedTiming.PollIntervalMs(config.Elements, config.IntervalSeconds);
+        int pollMs = SensorFeedTiming.KeepAlivePollMs;
 
         Log($"feeding {config.Elements} interval {config.IntervalSeconds}s poll {pollMs}ms on {located.Value.GpuName}");
         var loop = new SensorFeedLoop(panel, sensors, () => busLock.Acquire());

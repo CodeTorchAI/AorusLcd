@@ -1,22 +1,13 @@
 namespace AorusLcd.Core.Sensors;
 
-/// <summary>Adaptive feed cadence: one widget ~1 s, rotating dashboard uses interval clamped to [1 s, 5 s] to reduce bus traffic.</summary>
+/// <summary>
+/// E3 SensorFeed keep-alive cadence. The panel firmware freezes the on-screen widgets
+/// unless the feed is pushed at ~1 Hz, independent of how often the dashboard rotates
+/// between widgets (rotation is handled panel-side via the E1 interval). Gigabyte's own
+/// AorusLcdService pushes at a fixed 1000 ms, so we match it.
+/// </summary>
 public static class SensorFeedTiming
 {
-    public const int MinPollMs = 1000;
-    public const int MaxPollMs = 5000;
-
-    /// <summary>Poll interval (ms) for the given widget count and rotation interval.</summary>
-    public static int PollIntervalMs(int widgetCount, int rotationIntervalSeconds)
-    {
-        if (widgetCount <= 1)
-        {
-            return MinPollMs;
-        }
-        return Math.Clamp(rotationIntervalSeconds * 1000, MinPollMs, MaxPollMs);
-    }
-
-    /// <summary>Poll interval (ms) for a dashboard element selection.</summary>
-    public static int PollIntervalMs(LcdDisplayElements elements, int rotationIntervalSeconds)
-        => PollIntervalMs(System.Numerics.BitOperations.PopCount((uint)elements), rotationIntervalSeconds);
+    /// <summary>Fixed E3 push interval in milliseconds (~1 Hz keep-alive).</summary>
+    public const int KeepAlivePollMs = 1000;
 }

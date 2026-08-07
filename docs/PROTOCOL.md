@@ -142,8 +142,11 @@ widgets freeze.
 ```
 
 Values are clamped (`u8` 0..255, `u16` 0..65535). The GUI and the background
-service share one `SensorFeedLoop`; poll cadence is adaptive (1-5 s) via
-`SensorFeedTiming`.
+service share one `SensorFeedLoop`, which pushes E3 at a fixed **~1 Hz**
+keep-alive (`SensorFeedTiming.KeepAlivePollMs`). This is independent of the
+dashboard **rotation** interval (E1 `[13]`), which the panel firmware handles on
+its own: pushing slower than ~1 Hz starves the keep-alive and freezes the
+widgets. Gigabyte's own `AorusLcdService` likewise pushes at a fixed 1000 ms.
 
 Code: `PanelController.SendSensorFeed`, `SensorSample.cs`,
 `Sensors/NvmlSensorSource.cs`, `Sensors/SensorFeedLoop.cs`.
