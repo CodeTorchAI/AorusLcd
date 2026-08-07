@@ -10,6 +10,7 @@ public sealed class NvmlSensorSource : ISensorSource
     private readonly IntPtr _device;
     private bool _initialized;
     private static bool _fanRpmUnavailable;
+    private static bool _instantPowerUnavailable;
 
     public NvmlSensorSource(uint? pciBusId = null)
     {
@@ -39,7 +40,7 @@ public sealed class NvmlSensorSource : ISensorSource
         int ramClock = Nvml.GetClockInfo(device, ClockMemory, out uint mc) == 0 ? (int)mc : 0;
         var util = Nvml.GetUtilizationRates(device, out var u) == 0 ? u : default;
         int fan = ReadFanRpm(device);
-        int powerMw = Nvml.GetPowerUsage(device, out uint mw) == 0 ? (int)mw : 0;
+        int powerMw = ReadPowerMw(device);
 
         return new SensorSample
         {
@@ -74,6 +75,29 @@ public sealed class NvmlSensorSource : ISensorSource
         }
 
         return Nvml.GetFanSpeed(device, out uint pct) == 0 ? (int)pct : 0;
+    }
+
+    /// <summary>Read current power via the instant field (correct on Blackwell); fall back to the deprecated call, which reports a stuck value on RTX 50-series.</summary>
+    private static int ReadPowerMw(IntPtr device)
+    {
+        if (!_instantPowerUnavailable)
+        {
+            try
+            {
+                var field = new Nvml.FieldValue { FieldId = Nvml.FiDevPowerInstant };
+                if (Nvml.GetFieldValues(device, 1, ref field) == 0 && field.NvmlReturn == 0)
+                {
+                    return (int)(uint)field.ValueRaw;
+                }
+                // Transient or per-device failure: fall back this cycle but keep probing.
+            }
+            catch (Exception e) when (e is EntryPointNotFoundException or DllNotFoundException)
+            {
+                _instantPowerUnavailable = true; // old driver without the export: stop probing
+            }
+        }
+
+        return Nvml.GetPowerUsage(device, out uint mw) == 0 ? (int)mw : 0;
     }
 
     /// <summary>Pick the NVML device matching <paramref name="pciBusId"/>, falling back to device 0 if unknown or unmatched.</summary>

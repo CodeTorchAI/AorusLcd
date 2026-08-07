@@ -74,6 +74,24 @@ internal static class Nvml
 
     public const uint FanSpeedInfoV1 = 12u | (1u << 24);
 
+    // nvmlFieldValue_t: fieldId, scopeId, timestamp, latencyUsec, valueType,
+    // nvmlReturn, then an 8-byte value union (uiVal is the low 32 bits on LE).
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FieldValue
+    {
+        public uint FieldId;
+        public uint ScopeId;
+        public long Timestamp;
+        public long LatencyUsec;
+        public uint ValueType;
+        public int NvmlReturn;
+        public ulong ValueRaw;
+    }
+
+    // NVML_FI_DEV_POWER_INSTANT: current GPU power in mW, all architectures.
+    // nvmlDeviceGetPowerUsage is deprecated and returns a stuck value on Blackwell.
+    public const uint FiDevPowerInstant = 186u;
+
     // 0 = NVML_SUCCESS. sensorType 0 = GPU; clockType 0 = graphics, 2 = mem.
     [DllImport(Lib, EntryPoint = "nvmlInit_v2")]
     public static extern int Init();
@@ -109,4 +127,7 @@ internal static class Nvml
 
     [DllImport(Lib, EntryPoint = "nvmlDeviceGetPowerUsage")]
     public static extern int GetPowerUsage(IntPtr device, out uint milliwatts);
+
+    [DllImport(Lib, EntryPoint = "nvmlDeviceGetFieldValues")]
+    public static extern int GetFieldValues(IntPtr device, int valuesCount, ref FieldValue values);
 }
