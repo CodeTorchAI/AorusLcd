@@ -4,10 +4,10 @@ namespace AorusLcd.Core.Nvapi;
 
 /// <summary>NVAPI I2C bus for one physical GPU/port; writes raw blocks to <see cref="Address"/> on <see cref="Port"/> and disposal is a no-op.</summary>
 [SupportedOSPlatform("windows")]
-public sealed class NvApiI2cBus(IntPtr gpuHandle, byte address = 0x61, byte port = 1) : II2cBus
+public sealed class NvApiI2cBus(IntPtr gpuHandle, byte address = 0x61, byte port = 1,
+    NvApiI2cSpeed speed = NvApiI2cSpeed.Default) : II2cBus
 {
     private const uint SpeedDeprecated = 0xFFFF;
-    private const uint SpeedDefaultKhz = 0; // NVAPI_I2C_SPEED_DEFAULT
 
     public byte Address { get; } = address;
     public byte Port { get; } = port;
@@ -60,7 +60,7 @@ public sealed class NvApiI2cBus(IntPtr gpuHandle, byte address = 0x61, byte port
         Data = dataPtr,
         Size = size,
         I2cSpeed = SpeedDeprecated,
-        I2cSpeedKhz = SpeedDefaultKhz,
+        I2cSpeedKhz = (uint)speed,
         PortId = Port,
         IsPortIdSet = 1,
     };

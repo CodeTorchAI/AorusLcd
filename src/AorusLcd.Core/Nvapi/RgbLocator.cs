@@ -84,7 +84,8 @@ public static class RgbLocator
             bool isAorus;
             try
             {
-                new PanelController(new NvApiI2cBus(gpu, address: 0x61, port: Port)).Probe();
+                new PanelController(new NvApiI2cBus(gpu, address: 0x61, port: Port,
+                    speed: NvApiI2cSpeed.Khz400)).Probe();
                 isAorus = true;
             }
             catch (NvApiException)
