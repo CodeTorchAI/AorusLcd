@@ -54,7 +54,10 @@ public static class RgbLocator
             string name = NvApi.GetFullName(gpu);
             foreach (var (addr, kind) in CandidateOrder(ClassifyByName(name)))
             {
-                var bus = new NvApiI2cBus(gpu, addr, Port);
+                // Pin to the same 400 kHz the LCD path uses: RGB shares the one
+                // physical GPU I2C engine, and default-speed writes wedge it,
+                // freezing/blanking the panel (the recurring 0x61 freeze).
+                var bus = new NvApiI2cBus(gpu, addr, Port, NvApiI2cSpeed.Khz400);
                 if (Present(bus, kind))
                 {
                     return (kind, bus, name, addr);
