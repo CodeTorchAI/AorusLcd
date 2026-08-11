@@ -18,6 +18,11 @@ public sealed record FeedConfig
     public LcdDisplayElements Elements => (LcdDisplayElements)DisplayElements;
 
     /// <summary>Machine-wide config path: <c>%ProgramData%\AorusLcd\feed.json</c>.</summary>
+    /// <remarks>
+    /// This file is intentionally writable by local users so the unelevated GUI can drive the
+    /// dashboard. The LocalSystem service therefore treats its contents as untrusted numeric
+    /// input and throttles reloads (see <see cref="AorusLcd.Core.ReloadThrottle"/>).
+    /// </remarks>
     public static string DefaultPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "AorusLcd", "feed.json");

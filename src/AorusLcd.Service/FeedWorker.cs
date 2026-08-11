@@ -17,13 +17,27 @@ public sealed class FeedWorker : BackgroundService
     private const int InitialRetryMs = 2000;
     private const int MaxRetryMs = 60000;
 
+    // feed.json lives in %ProgramData% and is writable by unelevated users so the GUI can drive
+    // the dashboard, so its contents are untrusted: coalesce rapid rewrites into one reload per
+    // window to keep a user (or misbehaving process) from spinning the bus probe in a tight loop.
+    private const int ReloadDebounceMs = 1000;
+    private readonly ReloadThrottle _reloadThrottle = new(ReloadDebounceMs);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Log("service starting");
         int retryMs = InitialRetryMs;
         while (!stoppingToken.IsCancellationRequested)
         {
+            int throttleMs = _reloadThrottle.DelayUntilNextReload();
+            if (throttleMs > 0)
+            {
+                // Not cancelled by config changes: a burst of writes coalesces into the single
+                // reload below, which reads the latest file state so the last write still wins.
+                await DelaySafe(TimeSpan.FromMilliseconds(throttleMs), stoppingToken);
+            }
             var config = await FeedConfig.LoadAsync(cancellationToken: stoppingToken).ConfigureAwait(false);
+            _reloadThrottle.MarkReloaded();
             if (!config.Enabled || config.Elements == LcdDisplayElements.None)
             {
                 retryMs = InitialRetryMs;
