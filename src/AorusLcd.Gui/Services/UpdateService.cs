@@ -15,7 +15,7 @@ namespace AorusLcd.Gui.Services;
 public sealed record UpdateInfo(Version Version, string TagName, string ReleaseUrl, string SetupUrl, string SetupName);
 
 /// <summary>Checks GitHub Releases for a newer version, downloads its setup.exe, and launches the installer to self-update.</summary>
-public sealed class UpdateService
+public sealed class UpdateService : IUpdateService
 {
     private const string ReleasesApi = "https://api.github.com/repos/JustinMDotNet/AorusLcd/releases?per_page=20";
 
