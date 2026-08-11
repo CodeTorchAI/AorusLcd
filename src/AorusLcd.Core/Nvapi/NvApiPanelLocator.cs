@@ -6,12 +6,19 @@ namespace AorusLcd.Core.Nvapi;
 [SupportedOSPlatform("windows")]
 public static class NvApiPanelLocator
 {
+    private const byte DefaultPort = 1;
+    private const byte LcdAddress = 0x61;
+
     /// <summary>Find the first physical GPU where 0x61 answers on <paramref name="port"/>, returning its bus/name or null.</summary>
-    public static (NvApiI2cBus Bus, string GpuName)? Locate(byte port = 1)
+    public static (NvApiI2cBus Bus, string GpuName)? Locate(byte port = DefaultPort)
     {
         foreach (var gpu in NvApi.EnumPhysicalGpus())
         {
-            var bus = new NvApiI2cBus(gpu, address: 0x61, port: port, speed: NvApiI2cSpeed.Khz400);
+            // Default port goes through the factory so port 1 + 400 kHz stay in
+            // one place; a caller-supplied port is honored (still at 400 kHz).
+            var bus = port == DefaultPort
+                ? NvApiBusFactory.Panel(gpu)
+                : new NvApiI2cBus(gpu, address: LcdAddress, port: port, speed: NvApiI2cSpeed.Khz400);
             if (TryProbe(bus))
             {
                 return (bus, NvApi.GetFullName(gpu));
