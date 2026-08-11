@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AorusLcd.Gui.Models;
@@ -28,8 +28,10 @@ public sealed class UpdateService
     /// <summary>Query GitHub for the newest release that ships an installer; return it only if it is newer than the running version.</summary>
     public async Task<UpdateInfo?> CheckForUpdateAsync(CancellationToken cancellationToken = default)
     {
-        var json = await Http.GetStringAsync(ReleasesApi, cancellationToken).ConfigureAwait(false);
-        var releases = JsonSerializer.Deserialize(json, GitHubReleaseJson.Default.GitHubReleaseArray);
+        var releases = await Http.GetFromJsonAsync(
+            ReleasesApi,
+            GitHubReleaseJson.Default.GitHubReleaseArray,
+            cancellationToken).ConfigureAwait(false);
         if (releases is null)
         {
             return null;
