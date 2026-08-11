@@ -105,20 +105,23 @@ public sealed class NvmlSensorSource : ISensorSource
     {
         if (pciBusId is uint wanted)
         {
-            uint count = 0;
-            if (Nvml.GetCount(out count) == 0)
+            int status = Nvml.GetCount(out uint count);
+            if (status != 0)
             {
-                for (uint i = 0; i < count; i++)
+                // Distinguish an enumeration failure from a genuine no-match so the log is not misleading.
+                throw new InvalidOperationException(
+                    $"NVML: could not enumerate GPUs (nvmlDeviceGetCount status {status}).");
+            }
+            for (uint i = 0; i < count; i++)
+            {
+                if (Nvml.GetHandleByIndex(i, out var device) != 0)
                 {
-                    if (Nvml.GetHandleByIndex(i, out var device) != 0)
-                    {
-                        continue;
-                    }
-                    var pci = new Nvml.PciInfo { BusIdLegacy = new byte[16], BusId = new byte[32] };
-                    if (Nvml.GetPciInfo(device, ref pci) == 0 && pci.Bus == wanted)
-                    {
-                        return device;
-                    }
+                    continue;
+                }
+                var pci = new Nvml.PciInfo { BusIdLegacy = new byte[16], BusId = new byte[32] };
+                if (Nvml.GetPciInfo(device, ref pci) == 0 && pci.Bus == wanted)
+                {
+                    return device;
                 }
             }
 

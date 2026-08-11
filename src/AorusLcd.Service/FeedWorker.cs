@@ -125,15 +125,12 @@ public sealed class FeedWorker : BackgroundService
         watcher.Renamed += (_, _) => onChanged();
         watcher.Error += (_, e) =>
         {
-            try
-            {
-                Log($"config watcher error: {e.GetException().Message}; reloading");
-                onChanged();
-            }
-            catch (Exception)
-            {
-                // Error events must not take down the service.
-            }
+            // Trigger the reload first so a logging failure can never prevent recovery, and
+            // null-guard GetException() (it can be null) so the reload always runs.
+            try { onChanged(); }
+            catch (Exception) { /* Error events must not take down the service. */ }
+            try { Log($"config watcher error: {e.GetException()?.Message}; reloading"); }
+            catch (Exception) { /* logging must never take down the service. */ }
         };
         return watcher;
     }
