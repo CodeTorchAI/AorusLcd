@@ -1,6 +1,6 @@
 namespace AorusLcd.Core.Sensors;
 
-/// <summary>Reads NVML sensors for E3: MHz clocks, percent usage/RAM, whole-watt TGP, fan value, FPS=0; selects PCI bus match or device 0.</summary>
+/// <summary>Reads NVML sensors for E3: MHz clocks, percent usage/RAM, whole-watt TGP, fan value, FPS=0; refuses PCI bus mismatches and uses device 0 only when unknown.</summary>
 public sealed class NvmlSensorSource : ISensorSource
 {
     private const uint TemperatureGpu = 0;
@@ -100,11 +100,18 @@ public sealed class NvmlSensorSource : ISensorSource
         return Nvml.GetPowerUsage(device, out uint mw) == 0 ? (int)mw : 0;
     }
 
-    /// <summary>Pick the NVML device matching <paramref name="pciBusId"/>, falling back to device 0 if unknown or unmatched.</summary>
+    /// <summary>Pick the NVML device matching <paramref name="pciBusId"/>, or device 0 only when the bus id is unknown.</summary>
     private static IntPtr ResolveDevice(uint? pciBusId)
     {
-        if (pciBusId is uint wanted && Nvml.GetCount(out uint count) == 0)
+        if (pciBusId is uint wanted)
         {
+            int status = Nvml.GetCount(out uint count);
+            if (status != 0)
+            {
+                // Distinguish an enumeration failure from a genuine no-match so the log is not misleading.
+                throw new InvalidOperationException(
+                    $"NVML: could not enumerate GPUs (nvmlDeviceGetCount status {status}).");
+            }
             for (uint i = 0; i < count; i++)
             {
                 if (Nvml.GetHandleByIndex(i, out var device) != 0)
@@ -117,6 +124,9 @@ public sealed class NvmlSensorSource : ISensorSource
                     return device;
                 }
             }
+
+            throw new InvalidOperationException(
+                $"NVML: no GPU matched PCI bus 0x{wanted:X2} among {count} devices; refusing to guess.");
         }
 
         if (Nvml.GetHandleByIndex(0, out var first) != 0)
