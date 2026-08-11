@@ -36,6 +36,9 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Set by the view to present a file picker (needs a TopLevel).</summary>
     public Func<Task<string?>>? ImagePicker { get; set; }
 
+    /// <summary>Set by the view to confirm launching a signed-but-unverified or unsigned installer.</summary>
+    public Func<string, string, Task<bool>>? InstallerLaunchConfirmation { get; set; }
+
     public MainViewModel()
     {
         RgbModes = ["Static", "Breathing", "Color Cycle", "Flash", "Wave",
@@ -1086,10 +1089,21 @@ public partial class MainViewModel : ViewModelBase
                 UpdateInProgress = false;
                 return;
             }
+            if (signature != InstallerSignature.Trusted
+                && !await ConfirmInstallerLaunchAsync(signature).ConfigureAwait(true))
+            {
+                TryDelete(setupPath);
+                UpdateStatus = "Update canceled: the installer wasn't fully verified, so it wasn't launched.";
+                UpdateInProgress = false;
+                return;
+            }
 
-            UpdateStatus = signature == InstallerSignature.Trusted
-                ? "Signature verified. Launching installer…"
-                : "Launching installer (note: this download isn't code-signed)…";
+            UpdateStatus = signature switch
+            {
+                InstallerSignature.Trusted => "Signature verified. Launching installer…",
+                InstallerSignature.Indeterminate => "Launching installer after confirmation (signature revocation status couldn't be checked)…",
+                _ => "Launching installer after confirmation (this download isn't code-signed)…",
+            };
             UpdateService.LaunchInstaller(setupPath);
             launched = true;
             // The installer needs to replace this exe, so exit once it has launched.
@@ -1120,6 +1134,26 @@ public partial class MainViewModel : ViewModelBase
             // best-effort cleanup of a rejected download
         }
     }
+
+    private async Task<bool> ConfirmInstallerLaunchAsync(InstallerSignature signature)
+    {
+        if (InstallerLaunchConfirmation is null)
+        {
+            return false;
+        }
+
+        return await InstallerLaunchConfirmation("Confirm installer launch", GetInstallerLaunchWarning(signature))
+            .ConfigureAwait(true);
+    }
+
+    private static string GetInstallerLaunchWarning(InstallerSignature signature) => signature switch
+    {
+        InstallerSignature.Indeterminate =>
+            "The downloaded installer is signed, but Windows couldn't check whether the signing certificate was revoked. This can happen when you're offline or a revocation server is blocked. Only launch it if you trust this release.",
+        InstallerSignature.NotSigned =>
+            "The downloaded installer isn't code-signed, so Windows couldn't verify who published it. Only launch it if you trust this release.",
+        _ => "The downloaded installer wasn't fully verified. Only launch it if you trust this release.",
+    };
 
     // ---- helpers -----------------------------------------------------------
 
