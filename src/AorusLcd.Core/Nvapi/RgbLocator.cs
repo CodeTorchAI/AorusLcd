@@ -77,7 +77,7 @@ public static class RgbLocator
     private static bool Present(NvApiI2cBus bus, RgbControllerKind kind)
         => kind == RgbControllerKind.Blackwell
             ? new RgbFusion2BlackwellController(bus).Detect()
-            : new RgbFusion2Controller(bus).Detect().Present;
+            : new RgbFusion2Controller(bus).Detect();
 
     /// <summary>GPUs confirmed as the Aorus LCD card (0x61 answers), gating RGB writes to the correct card.</summary>
     private static IEnumerable<IntPtr> AorusGpus()
