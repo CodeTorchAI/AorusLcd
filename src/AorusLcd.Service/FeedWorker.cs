@@ -123,6 +123,18 @@ public sealed class FeedWorker : BackgroundService
         watcher.Created += (_, _) => onChanged();
         watcher.Deleted += (_, _) => onChanged();
         watcher.Renamed += (_, _) => onChanged();
+        watcher.Error += (_, e) =>
+        {
+            try
+            {
+                Log($"config watcher error: {e.GetException().Message}; reloading");
+                onChanged();
+            }
+            catch (Exception)
+            {
+                // Error events must not take down the service.
+            }
+        };
         return watcher;
     }
 

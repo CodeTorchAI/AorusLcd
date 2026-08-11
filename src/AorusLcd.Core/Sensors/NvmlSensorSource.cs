@@ -1,6 +1,6 @@
 namespace AorusLcd.Core.Sensors;
 
-/// <summary>Reads NVML sensors for E3: MHz clocks, percent usage/RAM, whole-watt TGP, fan value, FPS=0; selects PCI bus match or device 0.</summary>
+/// <summary>Reads NVML sensors for E3: MHz clocks, percent usage/RAM, whole-watt TGP, fan value, FPS=0; refuses PCI bus mismatches and uses device 0 only when unknown.</summary>
 public sealed class NvmlSensorSource : ISensorSource
 {
     private const uint TemperatureGpu = 0;
@@ -100,23 +100,30 @@ public sealed class NvmlSensorSource : ISensorSource
         return Nvml.GetPowerUsage(device, out uint mw) == 0 ? (int)mw : 0;
     }
 
-    /// <summary>Pick the NVML device matching <paramref name="pciBusId"/>, falling back to device 0 if unknown or unmatched.</summary>
+    /// <summary>Pick the NVML device matching <paramref name="pciBusId"/>, or device 0 only when the bus id is unknown.</summary>
     private static IntPtr ResolveDevice(uint? pciBusId)
     {
-        if (pciBusId is uint wanted && Nvml.GetCount(out uint count) == 0)
+        if (pciBusId is uint wanted)
         {
-            for (uint i = 0; i < count; i++)
+            uint count = 0;
+            if (Nvml.GetCount(out count) == 0)
             {
-                if (Nvml.GetHandleByIndex(i, out var device) != 0)
+                for (uint i = 0; i < count; i++)
                 {
-                    continue;
-                }
-                var pci = new Nvml.PciInfo { BusIdLegacy = new byte[16], BusId = new byte[32] };
-                if (Nvml.GetPciInfo(device, ref pci) == 0 && pci.Bus == wanted)
-                {
-                    return device;
+                    if (Nvml.GetHandleByIndex(i, out var device) != 0)
+                    {
+                        continue;
+                    }
+                    var pci = new Nvml.PciInfo { BusIdLegacy = new byte[16], BusId = new byte[32] };
+                    if (Nvml.GetPciInfo(device, ref pci) == 0 && pci.Bus == wanted)
+                    {
+                        return device;
+                    }
                 }
             }
+
+            throw new InvalidOperationException(
+                $"NVML: no GPU matched PCI bus 0x{wanted:X2} among {count} devices; refusing to guess.");
         }
 
         if (Nvml.GetHandleByIndex(0, out var first) != 0)
