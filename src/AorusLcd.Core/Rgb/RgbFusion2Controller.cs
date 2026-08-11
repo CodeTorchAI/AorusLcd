@@ -65,7 +65,7 @@ public sealed class RgbFusion2Controller(II2cBus bus)
     public void SaveConfig() => Send([RgbFusion2.RegSave, 0, 0, 0, 0, 0, 0, 0]);
 
     /// <summary>Write one 8-byte packet with pacing and a small retry.</summary>
-    private void Send(byte[] packet) => PacedI2cWriter.Send(bus, packet, attempts: 3, WriteDelayMs);
+    private void Send(byte[] packet) => PacedI2cWriter.Send(bus, packet, attempts: 3, delayMs: WriteDelayMs);
 
     private void SetZone(byte zone, RgbMode mode, RgbZoneConfig config)
     {

@@ -6,6 +6,8 @@ internal static class PacedI2cWriter
     /// <summary>Write one packet, pacing by <paramref name="delayMs"/> and retrying up to <paramref name="attempts"/> times.</summary>
     public static void Send(II2cBus bus, byte[] packet, int attempts, int delayMs)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(attempts, 1);
+        ArgumentOutOfRangeException.ThrowIfNegative(delayMs);
         for (int attempt = 1; ; attempt++)
         {
             try

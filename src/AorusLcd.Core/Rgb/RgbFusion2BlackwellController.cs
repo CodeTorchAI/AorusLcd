@@ -98,5 +98,5 @@ public sealed class RgbFusion2BlackwellController(II2cBus bus)
         => mode is RgbBlackwellMode.ColorShift or RgbBlackwellMode.Tricolor or RgbBlackwellMode.Dazzle;
 
     /// <summary>Write one packet with pacing and a small retry (the controller NAKs back-to-back writes).</summary>
-    private void Send(byte[] packet) => PacedI2cWriter.Send(bus, packet, attempts: 3, WriteDelayMs);
+    private void Send(byte[] packet) => PacedI2cWriter.Send(bus, packet, attempts: 3, delayMs: WriteDelayMs);
 }
