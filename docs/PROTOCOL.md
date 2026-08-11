@@ -30,7 +30,7 @@ the same one GCC uses.
 | GPU port | **1** (internal controller bus) |
 | Write style | raw block write, **no register/command byte** |
 | I2C dev address field | NVAPI wants the address **left-shifted 1** (`Address << 1`) - see `NvApiI2cBus.BuildInfo` |
-| LCD bus speed | **400 kHz** (`NV_I2C_SPEED` enum value `NVAPI_I2C_SPEED_400KHZ`, not literal kHz). GCC's `AorusLcdService` pins the panel bus to 400 kHz; the NVAPI `NVAPI_I2C_SPEED_DEFAULT` (0) leaves the controller's current, unspecified speed, at which the panel intermittently rejects otherwise-valid writes (status -1) and the content freezes. The RGB controller (`0x71`/`0x75`) shares the same physical GPU I2C engine, so it is pinned to the same 400 kHz - a default-speed RGB write otherwise wedges the engine and blanks the panel. See `NvApiI2cSpeed`, `NvApiI2cBus.BuildInfo`, `NvApiPanelLocator`, `RgbLocator`. |
+| I2C bus speed | **400 kHz** (`NV_I2C_SPEED` enum value `NVAPI_I2C_SPEED_400KHZ`, not literal kHz). GCC's `AorusLcdService` pins the panel bus to 400 kHz; the NVAPI `NVAPI_I2C_SPEED_DEFAULT` (0) leaves the controller's current, unspecified speed, at which the panel intermittently rejects otherwise-valid writes (status -1) and the content freezes. The RGB controller (`0x71`/`0x75`) shares the same physical GPU I2C engine, so it is pinned to the same 400 kHz - a default-speed RGB write otherwise wedges the engine and blanks the panel. See `NvApiI2cSpeed`, `NvApiI2cBus.BuildInfo`, `NvApiPanelLocator`, `RgbLocator`. |
 
 ### Addresses on the bus
 
