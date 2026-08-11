@@ -14,7 +14,6 @@ public enum RgbControllerKind
 [SupportedOSPlatform("windows")]
 public static class RgbLocator
 {
-    private const byte Port = 1;
     private const byte BlackwellAddress = 0x75;
     private const byte LegacyAddress = 0x71;
 
@@ -57,7 +56,7 @@ public static class RgbLocator
                 // Pin to the same 400 kHz the LCD path uses: RGB shares the one
                 // physical GPU I2C engine, and default-speed writes wedge it,
                 // freezing/blanking the panel (the recurring 0x61 freeze).
-                var bus = new NvApiI2cBus(gpu, addr, Port, NvApiI2cSpeed.Khz400);
+                var bus = NvApiBusFactory.Rgb(gpu, addr);
                 if (Present(bus, kind))
                 {
                     return (kind, bus, name, addr);
@@ -87,8 +86,7 @@ public static class RgbLocator
             bool isAorus;
             try
             {
-                new PanelController(new NvApiI2cBus(gpu, address: 0x61, port: Port,
-                    speed: NvApiI2cSpeed.Khz400)).Probe();
+                new PanelController(NvApiBusFactory.Panel(gpu)).Probe();
                 isAorus = true;
             }
             catch (NvApiException)
