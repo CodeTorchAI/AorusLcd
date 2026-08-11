@@ -13,6 +13,9 @@ public enum InstallerSignature
     /// <summary>No Authenticode signature is present.</summary>
     NotSigned,
 
+    /// <summary>A signature is present, but its revocation status could not be checked.</summary>
+    Indeterminate,
+
     /// <summary>A signature is present but is tampered, expired, or untrusted.</summary>
     Invalid,
 }
@@ -70,9 +73,8 @@ public static class InstallerVerifier
             {
                 0 => InstallerSignature.Trusted,
                 TrustNoSignature => InstallerSignature.NotSigned,
-                // Soft-fail when the revocation server is unreachable so offline updates still work;
-                // an actually revoked cert returns CRYPT_E_REVOKED and falls through to Invalid.
-                CertERevocationFailure => InstallerSignature.Trusted,
+                // Signed but not fully verified: offline or blocked revocation checks must not be trusted.
+                CertERevocationFailure => InstallerSignature.Indeterminate,
                 _ => InstallerSignature.Invalid,
             };
         }
