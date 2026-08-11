@@ -12,7 +12,7 @@ namespace AorusLcd.Gui.Services;
 public sealed class HardwareUnavailableException(string message) : Exception(message);
 
 /// <summary>GUI async facade over core hardware using NVAPI and full-operation <see cref="SystemBusLock"/>; controllers are cached.</summary>
-public sealed class HardwareService
+public sealed class HardwareService : IHardwareService
 {
     private readonly Lazy<SystemBusLock> _busLock = new(() => new SystemBusLock());
     private PanelController? _panel;
@@ -97,7 +97,7 @@ public sealed class HardwareService
             }
         });
 
-    public Task SetPanelPowerAsync(bool on) => WithPanelAsync(panel => panel.OpenLcd(on));
+    public Task SetPanelPowerAsync(bool isOn) => WithPanelAsync(panel => panel.OpenLcd(isOn));
 
     public Task SetModeAsync(LcdMode mode) => WithPanelAsync(panel => panel.SetMode((int)mode));
 

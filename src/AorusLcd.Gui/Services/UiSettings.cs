@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace AorusLcd.Gui.Services;
 
 /// <summary>Per-user GUI preferences (tray visibility, etc.), persisted as JSON under the user's roaming app data.</summary>
-public sealed class UiSettings
+public sealed class UiSettings : ISettingsStore
 {
     /// <summary>Whether the system-tray icon is shown. When false, closing the window exits the GUI.</summary>
     public bool ShowTrayIcon { get; set; } = true;

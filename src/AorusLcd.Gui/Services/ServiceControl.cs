@@ -19,7 +19,7 @@ public enum ServiceState
 
 /// <summary>Manages unelevated service state queries and elevated install/uninstall/start/stop for the NativeAOT feed service.</summary>
 [SupportedOSPlatform("windows")]
-public sealed class ServiceControl
+public sealed class ServiceControl : IServiceControl
 {
     public const string ServiceName = "AorusLcdFeed";
 
@@ -85,6 +85,9 @@ public sealed class ServiceControl
         // and Modify inherit-only + no-propagate on files, so only files directly in
         // the dir (feed.json/service.log) are user-writable - never bin\ or its exe.
         // Verified via icacls: bin\AorusLcd.Service.exe gets no Users ACE.
+        // feed.json is deliberately user-writable so the unelevated GUI can drive the
+        // dashboard; the service treats its contents as untrusted numeric input and
+        // throttles reloads, so do NOT tighten these ACLs to lock users out of feed.json.
         string userSid = "*S-1-5-32-545";
         string batch =
             $"mkdir \"{dir}\" 2>nul & copy /y \"{source}\" \"{InstalledExePath}\" && " +
