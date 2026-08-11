@@ -26,6 +26,12 @@ public sealed class FeedWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Log("service starting");
+        // Hold a lifetime handle to the bus lock so the LocalSystem service creates and owns the
+        // named mutex in normal operation. Keeping one handle open for the service's lifetime keeps
+        // the kernel object alive and SYSTEM-owned, so an unelevated process cannot win the creation
+        // race and rewrite the lock's ACL. This handle is only held, never acquired (WaitOne), so it
+        // does not block the GUI or the per-operation acquires below.
+        using var lifetimeLock = new SystemBusLock();
         int retryMs = InitialRetryMs;
         while (!stoppingToken.IsCancellationRequested)
         {
