@@ -23,10 +23,10 @@ namespace AorusLcd.Gui.ViewModels;
 /// <summary>Main UI state for status, uploads, sensor dashboard, and RGB; service-backed sensor feed keeps running after GUI close.</summary>
 public partial class MainViewModel : ViewModelBase
 {
-    private readonly HardwareService _hw = new();
-    private readonly ServiceControl _service = new();
-    private readonly UpdateService _update = new();
-    private readonly UiSettings _uiSettings = UiSettings.Load();
+    private readonly IHardwareService _hw;
+    private readonly IServiceControl _service;
+    private readonly IUpdateService _update;
+    private readonly ISettingsStore _uiSettings;
 
     private UpdateInfo? _pendingUpdate;
 
@@ -40,7 +40,17 @@ public partial class MainViewModel : ViewModelBase
     public Func<string, string, Task<bool>>? InstallerLaunchConfirmation { get; set; }
 
     public MainViewModel()
+        : this(new HardwareService(), new ServiceControl(), new UpdateService(), UiSettings.Load())
     {
+    }
+
+    public MainViewModel(IHardwareService hw, IServiceControl service, IUpdateService update,
+        ISettingsStore uiSettings)
+    {
+        _hw = hw;
+        _service = service;
+        _update = update;
+        _uiSettings = uiSettings;
         RgbModes = ["Static", "Breathing", "Color Cycle", "Flash", "Wave",
             "Gradient", "Color Shift", "Dual Flash", "Tricolor"];
         SelectedRgbMode = RgbModes[0];

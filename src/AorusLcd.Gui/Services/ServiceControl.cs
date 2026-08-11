@@ -19,7 +19,7 @@ public enum ServiceState
 
 /// <summary>Manages unelevated service state queries and elevated install/uninstall/start/stop for the NativeAOT feed service.</summary>
 [SupportedOSPlatform("windows")]
-public sealed class ServiceControl
+public sealed class ServiceControl : IServiceControl
 {
     public const string ServiceName = "AorusLcdFeed";
 
