@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace AorusLcd.Core;
 
-/// <summary>Global mutex serializing GUI/service access to GPU I2C 0x61; a scoped ACL lets the LocalSystem service and the unelevated GUI share it without granting the world control of the ACL.</summary>
+/// <summary>Global mutex serializing GUI/service access to GPU I2C 0x61; a scoped ACL lets the LocalSystem service and the unelevated GUI share it without granting the world control of the ACL. In normal operation the service holds a lifetime handle so the object is created and owned by LocalSystem.</summary>
 [SupportedOSPlatform("windows")]
 public sealed class SystemBusLock : IDisposable
 {
