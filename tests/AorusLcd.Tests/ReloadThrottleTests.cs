@@ -60,4 +60,19 @@ public class ReloadThrottleTests
         now += 500;
         Assert.Equal(0, throttle.DelayUntilNextReload());
     }
+
+    [Fact]
+    public void MarkReloaded_After_Window_Reopens_A_Full_Window()
+    {
+        long now = 10_000;
+        var throttle = new ReloadThrottle(1000, () => now);
+
+        throttle.MarkReloaded();
+        now += 1000; // first window fully elapsed
+        Assert.Equal(0, throttle.DelayUntilNextReload());
+
+        throttle.MarkReloaded(); // a later reload reopens a fresh debounce window
+        now += 400;
+        Assert.Equal(600, throttle.DelayUntilNextReload());
+    }
 }
