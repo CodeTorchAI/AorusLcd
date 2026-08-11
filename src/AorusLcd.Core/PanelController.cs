@@ -136,27 +136,7 @@ public sealed class PanelController(II2cBus bus)
         return (elements, r[2]);
     }
 
-    /// <summary>F4 GetLoop reads banks 1..5, each returning up to 3 (mode+1) entries plus byte-0 interval.</summary>
-    public (IReadOnlyList<int> Modes, int Interval) GetLoop()
-    {
-        var modes = new List<int>();
-        int interval = 0;
-        for (byte bank = 1; bank <= 5; bank++)
-        {
-            var r = ReadCommand(Opcode.GetLoop, [bank], 8);
-            for (int j = 0; j < 3; j++)
-            {
-                if (r[1 + j] != 0)
-                {
-                    modes.Add(r[1 + j] - 1);
-                }
-            }
-            interval = r[0];
-        }
-        return (modes, interval);
-    }
-
-    /// <summary>Read GUI status but skip <see cref="GetLoop"/>'s five locked bus round-trips unless carousel data is explicitly needed.</summary>
+    /// <summary>Read GUI status, covering firmware, mode, and dashboard elements (carousel banks are not read back).</summary>
     public LcdStatus GetStatus()
     {
         var (mode, on) = GetMode();

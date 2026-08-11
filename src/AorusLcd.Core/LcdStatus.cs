@@ -12,7 +12,7 @@ public sealed class LcdTemplate
     public bool Enabled { get; init; }
 }
 
-/// <summary>Read-back of the panel's current state (mode, dashboard, carousel).</summary>
+/// <summary>Read-back of the panel's current state (mode, dashboard).</summary>
 public sealed class LcdStatus
 {
     public string FirmwareVersion { get; init; } = "0.0";
@@ -20,6 +20,4 @@ public sealed class LcdStatus
     public bool IsOn { get; init; }
     public LcdDisplayElements DisplayElements { get; init; }
     public int DisplayInterval { get; init; }
-    public IReadOnlyList<int> CarouselModes { get; init; } = [];
-    public int CarouselInterval { get; init; }
 }

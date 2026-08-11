@@ -5,12 +5,6 @@ public readonly record struct RgbColor(byte R, byte G, byte B)
 {
     public static RgbColor Black => new(0, 0, 0);
 
-    /// <summary>Parse an <c>RRGGBB</c> hex string (leading '#' optional).</summary>
-    public static RgbColor Parse(string hex)
-        => TryParse(hex, out var color)
-            ? color
-            : throw new FormatException($"'{hex}' is not an RRGGBB hex color.");
-
     /// <summary>Try to parse an <c>RRGGBB</c> hex string (leading '#' optional).</summary>
     public static bool TryParse(string? hex, out RgbColor color)
     {

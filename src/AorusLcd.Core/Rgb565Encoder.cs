@@ -31,20 +31,6 @@ public static class Rgb565Encoder
         return outBuf;
     }
 
-    /// <summary>BGR888 (3 bytes/pixel, B,G,R) -> little-endian RGB565, single pass.</summary>
-    public static byte[] EncodeBgr(ReadOnlySpan<byte> bgr)
-    {
-        int pixels = bgr.Length / 3;
-        var outBuf = new byte[pixels * 2];
-        int j = 0;
-        for (int i = 0; i < bgr.Length; i += 3)
-        {
-            Pack(outBuf.AsSpan(j), bgr[i + 2], bgr[i + 1], bgr[i]); // R,G,B from B,G,R
-            j += 2;
-        }
-        return outBuf;
-    }
-
     private static void Pack(Span<byte> dst, byte r, byte g, byte b)
     {
         int v = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);

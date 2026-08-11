@@ -18,16 +18,16 @@ public sealed class RgbFusion2Controller(II2cBus bus)
     public int WriteDelayMs { get; set; } = 20;
 
     /// <summary>Probe by ACKed <c>AB</c> write only; RTX 5090 Master read failures leave GPU I2C in an error state.</summary>
-    public (bool Present, bool Handshake, byte[] Response) Detect()
+    public bool Detect()
     {
         try
         {
             bus.Write([RgbFusion2.RegQuery, 0, 0, 0, 0, 0, 0, 0]);
-            return (true, false, []);
+            return true;
         }
         catch (Exception)
         {
-            return (false, false, []);
+            return false;
         }
     }
 
@@ -65,26 +65,7 @@ public sealed class RgbFusion2Controller(II2cBus bus)
     public void SaveConfig() => Send([RgbFusion2.RegSave, 0, 0, 0, 0, 0, 0, 0]);
 
     /// <summary>Write one 8-byte packet with pacing and a small retry.</summary>
-    private void Send(byte[] packet)
-    {
-        const int attempts = 3;
-        for (int attempt = 1; ; attempt++)
-        {
-            try
-            {
-                bus.Write(packet);
-                if (WriteDelayMs > 0)
-                {
-                    Thread.Sleep(WriteDelayMs);
-                }
-                return;
-            }
-            catch (Exception) when (attempt < attempts)
-            {
-                Thread.Sleep(WriteDelayMs > 0 ? WriteDelayMs : 10);
-            }
-        }
-    }
+    private void Send(byte[] packet) => PacedI2cWriter.Send(bus, packet, attempts: 3, WriteDelayMs);
 
     private void SetZone(byte zone, RgbMode mode, RgbZoneConfig config)
     {
