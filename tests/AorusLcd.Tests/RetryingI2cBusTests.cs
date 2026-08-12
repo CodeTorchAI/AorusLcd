@@ -3,7 +3,7 @@ using AorusLcd.Core.Nvapi;
 
 namespace AorusLcd.Tests;
 
-/// <summary>Verifies <see cref="RetryingI2cBus"/> rides over transient NVAPI write failures while leaving reads unretried.</summary>
+/// <summary>Verifies <see cref="RetryingI2cBus"/> rides over transient NVAPI write and read failures while surfacing real errors.</summary>
 public class RetryingI2cBusTests
 {
     [Fact]
@@ -40,16 +40,41 @@ public class RetryingI2cBusTests
     }
 
     [Fact]
-    public void Read_Passes_Through_Without_Retry()
+    public void Read_Retries_Then_Succeeds()
     {
-        var inner = new FlakyBus(writeFailuresBeforeSuccess: 0);
+        var inner = new FlakyBus(readFailuresBeforeSuccess: 3);
         var bus = new RetryingI2cBus(inner, maxAttempts: 5, retryDelayMs: 0);
 
-        Assert.Throws<NvApiException>(() => bus.Read(4));
-        Assert.Equal(1, inner.ReadAttempts);
+        var result = bus.Read(4);
+
+        Assert.Equal(4, result.Length);
+        Assert.Equal(4, inner.ReadAttempts); // 3 failures + 1 success
     }
 
-    private sealed class FlakyBus(int writeFailuresBeforeSuccess, int failureStatus = -1) : II2cBus
+    [Fact]
+    public void Read_Rethrows_After_Exhausting_Attempts()
+    {
+        var inner = new FlakyBus(readFailuresBeforeSuccess: 10);
+        var bus = new RetryingI2cBus(inner, maxAttempts: 3, retryDelayMs: 0);
+
+        Assert.Throws<NvApiException>(() => bus.Read(4));
+        Assert.Equal(3, inner.ReadAttempts);
+    }
+
+    [Fact]
+    public void Read_Does_Not_Retry_NonTransient_Status()
+    {
+        var inner = new FlakyBus(readFailuresBeforeSuccess: 10, failureStatus: -5);
+        var bus = new RetryingI2cBus(inner, maxAttempts: 5, retryDelayMs: 0);
+
+        var ex = Assert.Throws<NvApiException>(() => bus.Read(4));
+        Assert.Equal(-5, ex.Status);
+        Assert.Equal(1, inner.ReadAttempts); // non-transient errors surface on the first attempt
+    }
+
+    private sealed class FlakyBus(
+        int writeFailuresBeforeSuccess = 0, int readFailuresBeforeSuccess = 0, int failureStatus = -1)
+        : II2cBus
     {
         public int WriteAttempts { get; private set; }
         public int ReadAttempts { get; private set; }
@@ -68,7 +93,11 @@ public class RetryingI2cBusTests
         public byte[] Read(int count)
         {
             ReadAttempts++;
-            throw new NvApiException("read", failureStatus);
+            if (ReadAttempts <= readFailuresBeforeSuccess)
+            {
+                throw new NvApiException("read", failureStatus);
+            }
+            return new byte[count];
         }
 
         public void Dispose()
