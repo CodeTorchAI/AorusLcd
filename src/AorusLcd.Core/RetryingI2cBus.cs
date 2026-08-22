@@ -24,7 +24,8 @@ public sealed class RetryingI2cBus : II2cBus
 
     public void Write(ReadOnlySpan<byte> data)
     {
-        // The span can't cross into a shared helper, so the retry loop is inlined here and in Read.
+        // A ReadOnlySpan<byte> can't be captured by a delegate, so the retry loop itself can't be
+        // factored into a shared helper and is duplicated in Read; only Backoff is shared.
         for (int attempt = 1; ; attempt++)
         {
             try
