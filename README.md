@@ -303,6 +303,7 @@ display mode - `sensors off` clears it, and `image` clears it by default
 | `src/AorusLcd.Gui` | Avalonia cross-platform GUI (Device / LCD Panel / RGB tabs, tray, service management). |
 | `src/AorusLcd.Service` | NativeAOT background Windows service (`AorusLcdFeed`) that pushes the live sensor feed. |
 | `tests/AorusLcd.Tests` | xUnit byte-parity tests. |
+| `tools/lcd-recovery` | Standalone panel unstick/reset utility. Outside the solution, built explicitly by CI. See [`docs/RECOVERY.md`](docs/RECOVERY.md). |
 
 ## Safety
 
@@ -310,6 +311,9 @@ Nothing here flashes firmware or touches persistent GPU state beyond the panel's
 own image memory. The worst observed failure during development of the reference
 tool was stale/black panel content until the next upload or a power cycle -
 never a bricked card. Still: use at your own risk.
+
+If the panel does go blank or freeze, [`docs/RECOVERY.md`](docs/RECOVERY.md) is
+the step-by-step runbook for getting it back.
 
 ## Credits
 
