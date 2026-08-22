@@ -16,7 +16,12 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.11" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageVersion Include="SkiaSharp" Version="4.151.1" />
+    <!-- Pinned to match Avalonia.Skia 12.1.1, which depends on SkiaSharp 3.119.4 and
+         ships its Linux/WebAssembly native assets at 3.119.4. Bumping the managed
+         package to 4.x on its own loads managed 4.x against Avalonia's 3.x-compiled
+         backend and splits managed/native versions on Linux. Move this only when
+         Avalonia itself moves to SkiaSharp 4.x. -->
+    <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <PackageVersion Include="System.ServiceProcess.ServiceController" Version="10.0.11" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />

@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # SkiaSharp must track Avalonia.Skia's pinned version: Avalonia's render backend
+    # is compiled against SkiaSharp 3.119.4 and ships its native assets at that
+    # version, so an independent bump splits managed/native and breaks rendering.
+    # Let Avalonia drive it; revisit when Avalonia moves to SkiaSharp 4.x.
+    ignore:
+      - dependency-name: "SkiaSharp"
     groups:
       nuget-minor-and-patch:
         update-types:
