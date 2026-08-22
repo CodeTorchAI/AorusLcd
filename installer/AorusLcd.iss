@@ -111,11 +111,58 @@ begin
     SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
+function IcaclsOk(const Args: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(SysExe('icacls.exe'), Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0);
+end;
+
+function IsReparsePoint(const Path: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  { `fsutil reparsepoint query` exits 0 only when Path IS a reparse point (junction/symlink). }
+  Result := Exec(SysExe('fsutil.exe'), 'reparsepoint query "' + Path + '"', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+function HardenServiceDir(): Boolean;
+var
+  DataDir, BinDir: String;
+begin
+  { Mirror ServiceControl.InstallAsync: refuse a pre-planted junction, then rebuild each DACL
+    from scratch so the LocalSystem exe is SYSTEM/Administrators-owned with Users limited to
+    read/execute, regardless of who created the tree. Repairs installs made before this
+    hardening existed. Returns False (fail-closed) if any step fails, so the caller can decline
+    to run the service from a directory it couldn't secure. }
+  DataDir := ExpandConstant('{commonappdata}\AorusLcd');
+  BinDir := DataDir + '\bin';
+  if IsReparsePoint(DataDir) or IsReparsePoint(BinDir) then
+  begin
+    Result := False;
+    Exit;
+  end;
+  ForceDirectories(BinDir);
+  Result :=
+    IcaclsOk('"' + DataDir + '" /setowner *S-1-5-18 /T /C') and
+    IcaclsOk('"' + DataDir + '" /reset') and
+    IcaclsOk('"' + DataDir + '" /inheritance:r') and
+    IcaclsOk('"' + DataDir + '" /remove:g *S-1-3-0') and
+    IcaclsOk('"' + DataDir + '" /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(RX,W)') and
+    IcaclsOk('"' + DataDir + '" /grant *S-1-5-32-545:(OI)(NP)(IO)M') and
+    IcaclsOk('"' + BinDir + '" /reset') and
+    IcaclsOk('"' + BinDir + '" /inheritance:r') and
+    IcaclsOk('"' + BinDir + '" /remove:g *S-1-3-0') and
+    IcaclsOk('"' + BinDir + '" /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX');
+end;
+
 procedure RefreshInstalledService();
 var
   ResultCode, Attempt: Integer;
   Source, Target: String;
-  WasRunning: Boolean;
+  WasRunning, Copied: Boolean;
 begin
   Source := ExpandConstant('{app}\AorusLcd.Service.exe');
   Target := ExpandConstant('{commonappdata}\AorusLcd\bin\AorusLcd.Service.exe');
@@ -132,20 +179,30 @@ begin
     Sleep(500);
   end;
 
-  { Overwrite the registered binary, retrying briefly if the lock lingers. A persistent
-    lock leaves the old exe in place, which is no worse than before this refresh existed. }
+  { Harden the directory BEFORE refreshing the binary, so the exe can never be copied into a
+    user-writable location and an upgrade repairs an install predating this hardening. If it
+    fails, don't copy or restart - leaving the service stopped is safer than running it from a
+    directory we couldn't secure. }
+  if not HardenServiceDir() then
+    Exit;
+
+  { Overwrite the registered binary, retrying briefly if the lock lingers. }
   ForceDirectories(ExtractFileDir(Target));
+  Copied := False;
   for Attempt := 1 to 10 do
   begin
     if CopyFile(Source, Target, False) then
+    begin
+      Copied := True;
       Break;
+    end;
     Sleep(500);
   end;
 
-  { Only restart if it was running before the upgrade, so a deliberately stopped service
-    stays stopped. Retry until it reports RUNNING, in case a slow stop was still
-    STOP_PENDING when the first start was issued. }
-  if WasRunning then
+  { Only restart if the fresh binary was written. If the copy failed (e.g. a local attacker
+    holding the old, possibly-tampered exe open to block replacement), leave the service
+    stopped rather than restart stale content as LocalSystem. }
+  if WasRunning and Copied then
     for Attempt := 1 to 10 do
     begin
       Exec(SysExe('sc.exe'), 'start ' + ServiceName, '',
