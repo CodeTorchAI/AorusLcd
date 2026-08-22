@@ -30,9 +30,11 @@ Mode=Faith1, On=True, Overlay=GpuTemp, Tgp, Interval=3s, Firmware=1.3.
 | `No panel answered EB 03` | The probe write or its read-back failed. Check that the NVIDIA driver is loaded, and retry elevated. |
 | `Mode=-1` | The `DE` read-back returned a zero mode byte. Usually bus contention with another process polling `0x61`, and harmless on its own. |
 | `Could not read panel status after 8 attempts` | One of the `DE`, `DF`, or `D6` reads kept failing. Contention is the usual cause. Go to step 2. |
+| `Timed out waiting for the bus lock` | Another AorusLcd process is holding `Global\AorusLcdBusLock`. Go to step 2. |
 | Status looks correct, screen still dark | Not a configuration problem. Go to step 3, then step 4. |
 
-Reading status is safe and writes nothing, so run it before you stop anything.
+Reading status changes no configuration. It does send the `EB 03` probe write to
+find the panel, but nothing beyond that, so run it before you stop anything.
 Expect contention noise in the numbers while GCC is still running.
 
 ## 2. Stop whatever else owns the bus
@@ -81,15 +83,21 @@ to persist across a reboot.
 
 Symptom: every read comes back correct and there is no light at all, in any mode.
 
-This happened on 2026-08-22. The panel reported `Mode=Faith3, On=True` with the
-overlay set, and stayed black. A full recovery back into Faith 3 changed nothing.
-Neither did a solid white upload in Image mode with GCC's service stopped, which
-was the useful test, because it ruled out both a content wedge and GCC as the
-culprit. What actually brought it back:
+This happened on 2026-08-22. It took three attempts, and the first two are worth
+knowing about because of what they ruled out.
+
+The panel reported `Mode=Faith3, On=True` with the overlay set, and stayed black.
+The first attempt recovered back into Faith 3 and changed nothing. The second
+pushed a solid white frame in Image mode with GCC's service stopped, and that
+stayed dark too, which was still the useful result, because it ruled out both a
+content wedge and GCC as the culprit. The third attempt is the one that worked:
 
 ```powershell
 & $lcd --mode 0 --color FF0000 --no-overlay --no-save
 ```
+
+The color is red only because that is what got run at the time. Any color works,
+since the point is the mode, not the frame.
 
 Faith 1 is a firmware animation that needs no uploaded content, so it is the
 cleanest test of whether the panel can light up at all. Be careful about the

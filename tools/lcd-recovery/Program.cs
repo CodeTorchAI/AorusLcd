@@ -95,7 +95,19 @@ for (int i = 0; i < args.Length; i++)
 // Hold the shared bus lock across the whole run, including the EB 03 locate probe,
 // so a concurrent GUI/service write cannot interleave with it.
 using var busLock = new SystemBusLock();
-using var busScope = busLock.Acquire();
+IDisposable acquired;
+try
+{
+    acquired = busLock.Acquire();
+}
+catch (TimeoutException)
+{
+    Console.Error.WriteLine(
+        "Timed out waiting for the bus lock. Something else is holding it: stop AorusLcdFeed " +
+        "(this project) or AorusLcdService (GIGABYTE Control Center), then retry.");
+    return 4;
+}
+using var busScope = acquired;
 
 Console.WriteLine("Locating the Aorus LCD controller (0x61)...");
 var located = NvApiPanelLocator.Locate();
