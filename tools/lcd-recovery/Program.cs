@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.Versioning;
 using AorusLcd.Core;
 using AorusLcd.Core.Nvapi;
+using AorusLcd.Core.Rgb;
 [assembly: SupportedOSPlatform("windows")]
 
 // AorusLcd panel recovery / control utility.
@@ -36,7 +37,7 @@ if (!OperatingSystem.IsWindows())
 }
 
 int targetMode = (int)LcdMode.Faith1;
-byte r = 0, g = 0, b = 0;
+RgbColor fillColor = RgbColor.Black;
 bool powerCycle = true;
 bool upload = true;
 bool save = true;
@@ -57,11 +58,7 @@ for (int i = 0; i < args.Length; i++)
             }
             break;
         case "--color" when i + 1 < args.Length:
-            var hex = args[++i].TrimStart('#');
-            if (hex.Length != 6 ||
-                !byte.TryParse(hex.AsSpan(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out r) ||
-                !byte.TryParse(hex.AsSpan(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out g) ||
-                !byte.TryParse(hex.AsSpan(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b))
+            if (!RgbColor.TryParse(args[++i], out fillColor))
             {
                 Console.Error.WriteLine($"--color must be 6 hex digits (RRGGBB), got '{args[i]}'.");
                 return 1;
@@ -158,8 +155,9 @@ if (powerCycle)
 
 if (upload)
 {
-    Console.WriteLine($"Uploading a fresh static frame (#{r:X2}{g:X2}{b:X2}) to clear the wedge...");
-    var frame = SolidFrame(r, g, b);
+    Console.WriteLine(
+        $"Uploading a fresh static frame (#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}) to clear the wedge...");
+    var frame = SolidFrame(fillColor.R, fillColor.G, fillColor.B);
     var frames = ProtocolFrames.BuildUpload(Panel.Descriptor, frame, Panel.FramebufferStatic);
     // Block synchronously: the bus lock is a thread-affine mutex, so Main must not
     // hop threads via await between Acquire and release, or ReleaseMutex throws.
