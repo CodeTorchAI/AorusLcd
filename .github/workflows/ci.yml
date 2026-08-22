@@ -32,6 +32,10 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release -p:ContinuousIntegrationBuild=true
 
+      # Outside the solution, so build it explicitly or it bit-rots against AorusLcd.Core.
+      - name: Build recovery tool
+        run: dotnet build tools/lcd-recovery -c Release
+
       - name: Test
         run: dotnet test --no-build -c Release --verbosity normal
 
