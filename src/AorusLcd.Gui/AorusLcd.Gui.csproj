@@ -33,6 +33,11 @@
     <ProjectReference Include="..\AorusLcd.Core\AorusLcd.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Expose internal decision helpers (e.g. InstallerVerifier.ApplyPublisherPin) to tests. -->
+    <InternalsVisibleTo Include="AorusLcd.Tests" />
+  </ItemGroup>
+
   <!--
     Bundle the NativeAOT service exe next to the GUI so the in-app installer can
     find it. Publish the service first (see README); when its published exe

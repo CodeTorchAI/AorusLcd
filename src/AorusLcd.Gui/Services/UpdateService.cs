@@ -128,7 +128,7 @@ public sealed class UpdateService : IUpdateService
     }
 
     /// <summary>Launch the installer via ShellExecute so its admin manifest triggers the UAC prompt; the app then exits to let it replace files.</summary>
-    public static void LaunchInstaller(string setupPath)
+    public void LaunchInstaller(string setupPath)
         => Process.Start(new ProcessStartInfo { FileName = setupPath, UseShellExecute = true });
 
     /// <summary>Parse a release tag like <c>v1.2.3</c> or <c>1.2.3-alpha</c> to its three-part numeric version, or null if unparseable.</summary>

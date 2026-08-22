@@ -1091,7 +1091,12 @@ public partial class MainViewModel : ViewModelBase
             setupPath = await _update.DownloadSetupAsync(update, progress).ConfigureAwait(true);
 
             UpdateStatus = "Verifying installer…";
-            var signature = await Task.Run(() => InstallerVerifier.Verify(setupPath)).ConfigureAwait(true);
+            // Pin the download to the same publisher that signed the running app: a valid
+            // Authenticode chain alone isn't enough, so an installer signed by a different
+            // certificate is rejected. Unsigned dev builds can't pin and fall back to the
+            // plain trust verdict (handled by VerifyMatchesPublisher).
+            var reference = Environment.ProcessPath ?? "";
+            var signature = await Task.Run(() => InstallerVerifier.VerifyMatchesPublisher(setupPath, reference)).ConfigureAwait(true);
             if (signature == InstallerSignature.Invalid)
             {
                 TryDelete(setupPath);
@@ -1114,7 +1119,7 @@ public partial class MainViewModel : ViewModelBase
                 InstallerSignature.Indeterminate => "Launching installer after confirmation (signature revocation status couldn't be checked)…",
                 _ => "Launching installer after confirmation (this download isn't code-signed)…",
             };
-            UpdateService.LaunchInstaller(setupPath);
+            _update.LaunchInstaller(setupPath);
             launched = true;
             // The installer needs to replace this exe, so exit once it has launched.
             ExitRequested?.Invoke(this, EventArgs.Empty);

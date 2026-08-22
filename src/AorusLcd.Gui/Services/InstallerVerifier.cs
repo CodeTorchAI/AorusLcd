@@ -1,6 +1,9 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace AorusLcd.Gui.Services;
 
@@ -103,6 +106,68 @@ public static class InstallerVerifier
 
     [DllImport("wintrust.dll", ExactSpelling = true, SetLastError = true)]
     private static extern uint WinVerifyTrust(IntPtr hwnd, ref Guid actionId, IntPtr data);
+
+    /// <summary>The Authenticode signer's subject (distinguished name) for a signed file, or
+    /// <c>null</c> when the file is unsigned or its signer can't be read. Used to pin an update
+    /// to the same publisher that signed the currently running app. The subject DN (not the
+    /// thumbprint) is intentional: it keeps auto-update working across a legitimate certificate
+    /// renewal, while Authenticode's trusted-chain requirement plus CA organization validation
+    /// make a different certificate bearing the same organization DN impractical to obtain.</summary>
+    public static string? GetPublisher(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        {
+            return null; // no reference to read (e.g. an empty ProcessPath)
+        }
+        try
+        {
+            // CreateFromSignedFile is the only managed way to read a PE's Authenticode signer;
+            // X509CertificateLoader (the SYSLIB0057 replacement) only loads standalone cert
+            // files, not the signer embedded in a signed executable, so suppress it here.
+#pragma warning disable SYSLIB0057
+            using var cert = X509Certificate.CreateFromSignedFile(filePath);
+#pragma warning restore SYSLIB0057
+            return cert.Subject;
+        }
+        catch (CryptographicException)
+        {
+            return null; // unsigned, or the signature couldn't be read
+        }
+    }
+
+    /// <summary>Trust verdict for <paramref name="filePath"/> that additionally requires it to be
+    /// signed by the same publisher as <paramref name="referenceSignedFile"/> (the running app).
+    /// A valid Authenticode chain alone is not enough - an installer signed by a different
+    /// publisher is rejected as <see cref="InstallerSignature.Invalid"/>. When the reference app
+    /// is itself unsigned (a dev build) identity can't be pinned, so the plain trust verdict is
+    /// returned unchanged.</summary>
+    public static InstallerSignature VerifyMatchesPublisher(string filePath, string referenceSignedFile)
+        => ApplyPublisherPin(Verify(filePath), GetPublisher(referenceSignedFile), () => GetPublisher(filePath));
+
+    /// <summary>Decision core for <see cref="VerifyMatchesPublisher"/>, split out so the publisher
+    /// pinning rules are unit-testable without Authenticode fixtures. <paramref name="actualPublisher"/>
+    /// is evaluated only when a comparison is actually needed.</summary>
+    internal static InstallerSignature ApplyPublisherPin(InstallerSignature trustVerdict,
+        string? expectedPublisher, Func<string?> actualPublisher)
+    {
+        if (string.IsNullOrEmpty(expectedPublisher))
+        {
+            return trustVerdict; // running app is unsigned; there's nothing to pin against
+        }
+        // The app is signed, so a genuine update is a signed installer from the same publisher.
+        // Anything that isn't a verified chain is rejected outright - including NotSigned, which
+        // Verify() also returns for a file the trust provider couldn't parse, so a matching signer
+        // subject on an otherwise-unverified file must not make it launchable. Only a chain that is
+        // Trusted, or Indeterminate solely because revocation couldn't be checked, is eligible, and
+        // then only when its signer matches.
+        if (trustVerdict is not (InstallerSignature.Trusted or InstallerSignature.Indeterminate))
+        {
+            return InstallerSignature.Invalid;
+        }
+        return string.Equals(expectedPublisher, actualPublisher(), StringComparison.OrdinalIgnoreCase)
+            ? trustVerdict
+            : InstallerSignature.Invalid;
+    }
 
     /// <summary>A TRUST_E_NOSIGNATURE result is only a true "unsigned" verdict for these last-error codes;
     /// any other last error means the provider could not validate a signature that is present.</summary>

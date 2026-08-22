@@ -14,4 +14,8 @@ public interface IUpdateService
 
     Task<string> DownloadSetupAsync(UpdateInfo update, IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Launch a downloaded installer (elevating via its manifest); the app then exits so
+    /// the installer can replace files. Behind the interface so the update flow is testable.</summary>
+    void LaunchInstaller(string setupPath);
 }
