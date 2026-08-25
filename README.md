@@ -39,6 +39,10 @@ quit; only the optional live sensor dashboard needs a tiny background service.
 - **Save to panel** - persist the current content/config to the panel's NVRAM
   so it survives a reboot with nothing running.
 - **Panel power** - turn the LCD on or off.
+- **Panel recovery** - one button that unsticks a blank or frozen LCD, running
+  the [`docs/RECOVERY.md`](docs/RECOVERY.md) repair sequence and temporarily
+  stopping GIGABYTE Control Center's LCD service so nothing else fights for the
+  bus.
 
 **RGB Fusion 2 lighting**
 
@@ -261,7 +265,8 @@ dotnet run --project src\AorusLcd.Gui
   Windows", and install/start/stop the background **`AorusLcdFeed`** service.
 - **LCD Panel** - send a static image, rendered text, or an animated GIF; pick a
   built-in screen; configure the carousel; and choose which sensor widgets the
-  dashboard shows. Tick **Save to panel** to persist across reboots.
+  dashboard shows. Tick **Save to panel** to persist across reboots. **Recover
+  panel** unsticks a blank or frozen LCD.
 - **RGB Lighting** - static color or an effect (breathing, color cycle, flash,
   wave, gradient, color shift, dual flash, tricolor) with brightness/speed. The
   multi-color effects (color shift, tricolor) take up to three colors.

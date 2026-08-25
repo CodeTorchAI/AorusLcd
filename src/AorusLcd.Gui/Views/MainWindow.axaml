@@ -137,6 +137,16 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Panel recovery -->
+                <Border Classes="card">
+                    <StackPanel>
+                        <TextBlock Classes="h2" Text="Panel Recovery" />
+                        <Button Content="🔧 Recover panel" Command="{Binding RecoverPanelCommand}" IsEnabled="{Binding IsNotBusy}" />
+                        <TextBlock Classes="label" FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Text="Use this when the LCD is blank or frozen but everything else looks fine. It power-cycles the panel and uploads a fresh frame, which a mode change alone cannot do. If GIGABYTE Control Center's LCD service is running it is stopped for the repair and started again afterwards, so expect a UAC prompt." />
+                    </StackPanel>
+                </Border>
+
                 <!-- Content selector: the panel shows exactly one of these at a time -->
                 <Border Classes="card">
                     <StackPanel>

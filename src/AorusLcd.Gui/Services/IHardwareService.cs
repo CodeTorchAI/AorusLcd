@@ -9,7 +9,7 @@ using AorusLcd.Core.Rgb;
 namespace AorusLcd.Gui.Services;
 
 /// <summary>Async facade over the Aorus LCD panel and RGB controllers; injectable seam for the view model.</summary>
-public interface IHardwareService
+public interface IHardwareService : IPanelRecovery
 {
     bool IsSupportedPlatform { get; }
 

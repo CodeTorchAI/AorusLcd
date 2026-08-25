@@ -101,6 +101,15 @@ public sealed class HardwareService : IHardwareService
 
     public Task SetModeAsync(LcdMode mode) => WithPanelAsync(panel => panel.SetMode((int)mode));
 
+    /// <summary>Run the docs/RECOVERY.md repaint sequence against a blank or frozen panel.</summary>
+    public Task RecoverPanelAsync(RecoveryOptions options, IProgress<string>? progress = null,
+        CancellationToken ct = default)
+        // Blocks inside the locked worker thread, matching the upload path: the bus lock is a
+        // thread-affine mutex, so the thread that acquired it must be the one that releases it.
+        => WithPanelAsync(panel => PanelRecovery
+            .RunAsync(panel, options, progress, cancellationToken: ct)
+            .GetAwaiter().GetResult());
+
     public Task SaveAsync() => WithPanelAsync(panel => panel.Save());
 
     // ---- RGB ---------------------------------------------------------------

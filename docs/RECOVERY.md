@@ -3,9 +3,17 @@
 The LCD goes dark or freezes for a few different reasons, and they do not share a
 fix. Work down this page in order. Each step tells you what its outcome rules out.
 
-Everything here uses `tools/lcd-recovery`, a standalone console utility that talks
-to the panel through `AorusLcd.Core`. It sits outside the solution, so build it
-explicitly:
+The app has a **Recover panel** button on the LCD Panel tab that runs the repair
+for you: it stops GIGABYTE Control Center's LCD service, power-cycles the panel,
+uploads a fresh frame, returns to Faith 1, and starts the service again. It sends
+no overlay command and does not touch NVRAM, which is the combination that has
+actually worked on a dark panel. Try that first. This page is the manual path: it
+explains the failure modes and gives you the flags to work through them when the
+button is not enough.
+
+The rest of this page uses `tools/lcd-recovery`, a standalone console utility
+that drives the same `AorusLcd.Core` recovery code as the button. It sits outside
+the solution, so build it explicitly:
 
 ```powershell
 dotnet build tools\lcd-recovery -c Release
@@ -63,7 +71,11 @@ renders, but the temperature and TGP numbers freeze at whatever was last pushed.
 ## 3. Wedged framebuffer
 
 This is the common failure. The panel reports a sane mode and `On=True` while
-showing a frozen image or nothing at all.
+showing a frozen image.
+
+If there is no light at all, skip to step 4. The two symptoms read identically
+over I2C, so status cannot tell them apart, but a fully dark panel has not
+responded to this step either time it has come up (2026-08-22, 2026-08-25).
 
 An `E5` SetMode alone will not repaint it. The wedged content lives in the
 framebuffer, so only a real `F2`/`F1` upload clears it. The upload leaves the
@@ -83,8 +95,9 @@ to persist across a reboot.
 
 Symptom: every read comes back correct and there is no light at all, in any mode.
 
-This happened on 2026-08-22. It took three attempts, and the first two are worth
-knowing about because of what they ruled out.
+This happened on 2026-08-22 and again on 2026-08-25, so treat it as recurring
+rather than a one-off. The first occurrence took three attempts, and the first
+two are worth knowing about because of what they ruled out.
 
 The panel reported `Mode=Faith3, On=True` with the overlay set, and stayed black.
 The first attempt recovered back into Faith 3 and changed nothing. The second
@@ -96,14 +109,27 @@ content wedge and GCC as the culprit. The third attempt is the one that worked:
 & $lcd --mode 0 --color FF0000 --no-overlay --no-save
 ```
 
-The color is red only because that is what got run at the time. Any color works,
-since the point is the mode, not the frame.
+The color is red only because that is what got run at the time. It probably does
+not matter, though nothing has tested it in isolation.
 
 Faith 1 is a firmware animation that needs no uploaded content, so it is the
 cleanest test of whether the panel can light up at all. Be careful about the
 conclusion though, because that run was also the third power-cycle in a row, and
 nothing proves the target mode rather than the repeated power cycling was what
 fixed it. Try it either way before blaming the hardware.
+
+The 2026-08-25 recurrence narrowed that down, because both of its attempts
+targeted the same mode. Step 3's `--mode 0 --no-save`, which sends the overlay,
+ran clean and left the panel dark. The command above, same Faith 1 target, lit
+it. So the target mode is not the thing that matters, which undercuts the Faith 1
+reasoning in the paragraph above.
+
+Three differences remain between those two attempts: the `E1` overlay write, the
+frame color, and being the second power-cycle in a row. That run separates none
+of them. Suspect the overlay first, because every attempt known to have sent one
+has stayed dark and both attempts that passed `--no-overlay` lit the panel. The
+2026-08-22 white-frame attempt is the gap in that claim, since no one recorded
+whether it sent an overlay.
 
 There is no backlight command to fall back on. The reference tool's `brightness`
 reuses the `E1` opcode with semantics inferred from a decompile, and it would
