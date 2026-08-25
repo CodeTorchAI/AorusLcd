@@ -3,7 +3,7 @@ namespace AorusLcd.Gui.Services;
 /// <summary>Result of a recovery attempt, including what it left GIGABYTE Control Center's LCD service in.</summary>
 /// <param name="Recovered">True when the repaint sequence ran to completion.</param>
 /// <param name="VendorServiceLeftStopped">True when this run stopped GCC's LCD service and could not start it again.</param>
-/// <param name="Error">Why the attempt did not recover the panel, as a complete sentence.</param>
+/// <param name="Error">Why the attempt did not recover the panel, as a human-readable message, or null on success.</param>
 public sealed record RecoveryOutcome(bool Recovered, bool VendorServiceLeftStopped, string? Error)
 {
     /// <summary>The bus could not be cleared, so nothing was written to the panel.</summary>
