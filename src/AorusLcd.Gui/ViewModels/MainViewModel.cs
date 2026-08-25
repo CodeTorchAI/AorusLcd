@@ -790,9 +790,25 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private Task RecoverPanelAsync() => RunAsync("Recovering the panel…", async () =>
     {
-        var progress = new Progress<string>(step => StatusMessage = step);
-        var outcome = await _recovery.RecoverAsync(progress);
-        return outcome.ToStatusMessage();
+        // Progress.Report posts asynchronously, so a late step (e.g. "Restarting…") could land
+        // after the outcome message and clobber it. Stop applying steps once the outcome is in hand.
+        bool settled = false;
+        var progress = new Progress<string>(step =>
+        {
+            if (!settled)
+            {
+                StatusMessage = step;
+            }
+        });
+        try
+        {
+            var outcome = await _recovery.RecoverAsync(progress);
+            return outcome.ToStatusMessage();
+        }
+        finally
+        {
+            settled = true;
+        }
     });
 
     [RelayCommand]
