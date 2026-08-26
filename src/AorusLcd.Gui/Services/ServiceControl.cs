@@ -23,13 +23,23 @@ public sealed class ServiceControl : IServiceControl
 {
     public const string ServiceName = "AorusLcdFeed";
 
+    /// <summary>GIGABYTE Control Center's LCD service. It drives the same I2C bus and knows nothing about our bus lock.</summary>
+    public const string GccServiceName = "AorusLcdService";
+
+    private static readonly TimeSpan ServiceWaitTimeout = TimeSpan.FromSeconds(20);
+
     /// <summary>Where the service exe is copied to and run from once installed.</summary>
     public static string InstalledExePath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "AorusLcd", "bin", "AorusLcd.Service.exe");
 
     /// <summary>Current service state (safe to call unelevated; never throws).</summary>
-    public ServiceState GetState()
+    public ServiceState GetState() => QueryState(ServiceName);
+
+    /// <summary>State of GIGABYTE Control Center's LCD service, which drives the same I2C bus and ignores our bus lock.</summary>
+    public ServiceState GetGccServiceState() => QueryState(GccServiceName);
+
+    private static ServiceState QueryState(string serviceName)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -37,7 +47,7 @@ public sealed class ServiceControl : IServiceControl
         }
         try
         {
-            using var sc = new ServiceController(ServiceName);
+            using var sc = new ServiceController(serviceName);
             return sc.Status switch
             {
                 ServiceControllerStatus.Running => ServiceState.Running,
@@ -105,6 +115,28 @@ public sealed class ServiceControl : IServiceControl
     public Task StartAsync() => RunElevatedCmdAsync($"sc start {ServiceName}");
 
     public Task StopAsync() => RunElevatedCmdAsync($"sc stop {ServiceName}");
+
+    /// <summary>Stop GIGABYTE Control Center's LCD service and wait for it to actually stop.</summary>
+    public async Task StopGccServiceAsync()
+    {
+        await RunElevatedCmdAsync($"sc stop {GccServiceName}").ConfigureAwait(false);
+        await WaitForStatusAsync(GccServiceName, ServiceControllerStatus.Stopped).ConfigureAwait(false);
+    }
+
+    /// <summary>Start GIGABYTE Control Center's LCD service and wait for it to actually start.</summary>
+    public async Task StartGccServiceAsync()
+    {
+        await RunElevatedCmdAsync($"sc start {GccServiceName}").ConfigureAwait(false);
+        await WaitForStatusAsync(GccServiceName, ServiceControllerStatus.Running).ConfigureAwait(false);
+    }
+
+    /// <summary>sc.exe returns once the control is accepted, so wait for the state to land before touching the bus.</summary>
+    private static Task WaitForStatusAsync(string serviceName, ServiceControllerStatus status)
+        => Task.Run(() =>
+        {
+            using var sc = new ServiceController(serviceName);
+            sc.WaitForStatus(status, ServiceWaitTimeout);
+        });
 
     private static async Task RunElevatedCmdAsync(string batch)
     {

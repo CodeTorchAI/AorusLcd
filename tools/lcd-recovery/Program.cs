@@ -7,15 +7,8 @@ using AorusLcd.Core.Rgb;
 
 // AorusLcd panel recovery / control utility.
 //
-// A blanked/wedged panel does NOT repaint on an E5 SetMode alone: the wedged
-// content lives in the framebuffer/NVRAM and only a real F2/F1 upload clears it.
-// The upload leaves the panel in Image mode, so the SetMode that follows is a
-// genuine mode change. Targeting Image itself is not, hence the nudge below.
-//
-// Recovery sequence:
-//   power-cycle -> upload a fresh static frame (clears the wedge, enters Image
-//   mode) -> transition to the target mode (default Faith1) -> enable the
-//   TGP+GPU-temp overlay -> Save to NVRAM.
+// The recovery sequence itself lives in AorusLcd.Core.PanelRecovery, shared with the
+// GUI's "Recover panel" button. This is the scriptable front end for it.
 //
 // Runbook: docs/RECOVERY.md.
 //
@@ -36,13 +29,7 @@ if (!OperatingSystem.IsWindows())
     return 1;
 }
 
-int targetMode = (int)LcdMode.Faith1;
-RgbColor fillColor = RgbColor.Black;
-bool powerCycle = true;
-bool upload = true;
-bool save = true;
-bool overlay = true;
-bool clearOverlay = false;
+var options = new RecoveryOptions();
 bool statusOnly = false;
 
 for (int i = 0; i < args.Length; i++)
@@ -50,35 +37,36 @@ for (int i = 0; i < args.Length; i++)
     switch (args[i])
     {
         case "--mode" when i + 1 < args.Length:
-            if (!int.TryParse(args[++i], CultureInfo.InvariantCulture, out targetMode) ||
+            if (!int.TryParse(args[++i], CultureInfo.InvariantCulture, out int targetMode) ||
                 !Enum.IsDefined((LcdMode)targetMode))
             {
                 Console.Error.WriteLine($"--mode must be 0..{(int)LcdMode.Carousel}, got '{args[i]}'.");
                 return 1;
             }
+            options = options with { TargetMode = (LcdMode)targetMode };
             break;
         case "--color" when i + 1 < args.Length:
-            if (!RgbColor.TryParse(args[++i], out fillColor))
+            if (!RgbColor.TryParse(args[++i], out var fillColor))
             {
                 Console.Error.WriteLine($"--color must be 6 hex digits (RRGGBB), got '{args[i]}'.");
                 return 1;
             }
+            options = options with { FillColor = fillColor };
             break;
         case "--no-powercycle":
-            powerCycle = false;
+            options = options with { PowerCycle = false };
             break;
         case "--no-upload":
-            upload = false;
+            options = options with { Upload = false };
             break;
         case "--no-save":
-            save = false;
+            options = options with { Save = false };
             break;
         case "--no-overlay":
-            overlay = false;
+            options = options with { Overlay = OverlayAction.Leave };
             break;
         case "--clear-overlay":
-            overlay = false;
-            clearOverlay = true;
+            options = options with { Overlay = OverlayAction.Clear };
             break;
         case "--status":
             statusOnly = true;
@@ -144,54 +132,11 @@ if (statusOnly)
     return 3;
 }
 
-if (powerCycle)
-{
-    Console.WriteLine("Power-cycling the LCD...");
-    panel.OpenLcd(false);
-    Thread.Sleep(1000);
-    panel.OpenLcd(true);
-    Thread.Sleep(1000);
-}
-
-if (upload)
-{
-    Console.WriteLine(
-        $"Uploading a fresh static frame (#{fillColor.R:X2}{fillColor.G:X2}{fillColor.B:X2}) to clear the wedge...");
-    var frame = SolidFrame(fillColor.R, fillColor.G, fillColor.B);
-    var frames = ProtocolFrames.BuildUpload(Panel.Descriptor, frame, Panel.FramebufferStatic);
-    // Block synchronously: the bus lock is a thread-affine mutex, so Main must not
-    // hop threads via await between Acquire and release, or ReleaseMutex throws.
-    panel.UploadContentAsync(frames, Panel.ModeStatic, isGif: false).GetAwaiter().GetResult();
-    Thread.Sleep(500);
-}
-
-Console.WriteLine($"Transitioning to mode {(LcdMode)targetMode}...");
-if (targetMode == Panel.ModeStatic)
-{
-    // The upload already left the panel in Image mode; nudge through another mode
-    // so the SetMode below is a genuine change and actually re-renders.
-    panel.SetMode((int)LcdMode.ChibTime);
-    Thread.Sleep(300);
-}
-panel.SetMode(targetMode);
-Thread.Sleep(300);
-
-if (clearOverlay)
-{
-    Console.WriteLine("Clearing the sensor overlay (no widgets)...");
-    panel.SetDisplay(LcdDisplayElements.None, intervalSeconds: 0);
-}
-else if (overlay)
-{
-    Console.WriteLine("Enabling the TGP + GPU-temp dashboard overlay...");
-    panel.SetDisplay(LcdDisplayElements.GpuTemp | LcdDisplayElements.Tgp, intervalSeconds: 3);
-}
-
-if (save)
-{
-    Console.WriteLine("Saving to panel NVRAM...");
-    panel.Save();
-}
+// Block synchronously: the bus lock is a thread-affine mutex, so Main must not hop
+// threads via await between Acquire and release, or ReleaseMutex throws.
+PanelRecovery
+    .RunAsync(panel, options, new ConsoleProgress())
+    .GetAwaiter().GetResult();
 
 try
 {
@@ -209,15 +154,8 @@ catch (NvApiException ex)
 }
 return 0;
 
-// Build a 320x170 little-endian RGB565 frame filled with one color.
-static byte[] SolidFrame(byte r, byte g, byte b)
+/// <summary>Writes progress synchronously; <see cref="Progress{T}"/> posts asynchronously and would reorder console lines.</summary>
+internal sealed class ConsoleProgress : IProgress<string>
 {
-    var rgb888 = new byte[Panel.FramePixels * 3];
-    for (int i = 0; i < rgb888.Length; i += 3)
-    {
-        rgb888[i] = r;
-        rgb888[i + 1] = g;
-        rgb888[i + 2] = b;
-    }
-    return Rgb565Encoder.Encode(rgb888);
+    public void Report(string value) => Console.WriteLine(value);
 }

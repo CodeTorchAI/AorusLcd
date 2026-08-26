@@ -27,6 +27,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly IServiceControl _service;
     private readonly IUpdateService _update;
     private readonly ISettingsStore _uiSettings;
+    private readonly IPanelRecoveryCoordinator _recovery;
 
     private UpdateInfo? _pendingUpdate;
 
@@ -46,11 +47,18 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel(IHardwareService hw, IServiceControl service, IUpdateService update,
         ISettingsStore uiSettings)
+        : this(hw, service, update, uiSettings, new PanelRecoveryCoordinator(hw, service))
+    {
+    }
+
+    public MainViewModel(IHardwareService hw, IServiceControl service, IUpdateService update,
+        ISettingsStore uiSettings, IPanelRecoveryCoordinator recovery)
     {
         _hw = hw;
         _service = service;
         _update = update;
         _uiSettings = uiSettings;
+        _recovery = recovery;
         RgbModes = ["Static", "Breathing", "Color Cycle", "Flash", "Wave",
             "Gradient", "Color Shift", "Dual Flash", "Tricolor"];
         SelectedRgbMode = RgbModes[0];
@@ -778,6 +786,31 @@ public partial class MainViewModel : ViewModelBase
         return "Saved to panel NVRAM (survives reboot).";
     });
 
+    /// <summary>Repair a blank or frozen panel, clearing the bus of GIGABYTE Control Center first (see docs/RECOVERY.md).</summary>
+    [RelayCommand]
+    private Task RecoverPanelAsync() => RunAsync("Recovering the panel…", async () =>
+    {
+        // Progress.Report posts asynchronously, so a late step (e.g. "Restarting…") could land
+        // after the outcome message and clobber it. Stop applying steps once the outcome is in hand.
+        bool settled = false;
+        var progress = new Progress<string>(step =>
+        {
+            if (!settled)
+            {
+                StatusMessage = step;
+            }
+        });
+        try
+        {
+            var outcome = await _recovery.RecoverAsync(progress);
+            return outcome.ToStatusMessage();
+        }
+        finally
+        {
+            settled = true;
+        }
+    });
+
     [RelayCommand]
     private Task SetModeAsync(ModePreset preset) => RunAsync($"Switching to {preset.Name}…", async () =>
     {
@@ -1301,7 +1334,12 @@ public partial class MainViewModel : ViewModelBase
         {
             // Bounded so a stuck operation can't block exit forever (the bus lock
             // itself times out at 60s); normal uploads finish in a few seconds.
-            await _currentOperation.WaitAsync(TimeSpan.FromSeconds(75));
+            // A recovery gets longer: abandoning one strands GIGABYTE Control
+            // Center's LCD service in the stopped state with nothing to restart it.
+            var limit = _recovery.OwesVendorServiceRestart
+                ? TimeSpan.FromSeconds(180)
+                : TimeSpan.FromSeconds(75);
+            await _currentOperation.WaitAsync(limit);
         }
         catch
         {

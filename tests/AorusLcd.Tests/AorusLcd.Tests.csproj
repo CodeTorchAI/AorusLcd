@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AorusLcd.Core\AorusLcd.Core.csproj" />
+    <ProjectReference Include="..\..\src\AorusLcd.Gui\AorusLcd.Gui.csproj" />
   </ItemGroup>
 
 </Project>
